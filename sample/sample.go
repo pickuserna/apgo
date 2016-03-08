@@ -4,5 +4,6 @@ import "fmt"
 
 func main() {
 	x := 1 + 1
-	fmt.Print("One plus one is ", x, "\n")
+	x += 1
+	fmt.Print("One plus one plus one is ", x, "\n")
 }

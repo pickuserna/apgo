@@ -17,3 +17,7 @@ func add(x interface{}, y interface{}) interface{} {
 var BinaryOperators = map[token.Token]reflect.Value{
 	token.ADD: reflect.ValueOf(add),
 }
+
+var AssignBinaryOperators = map[token.Token]reflect.Value{
+	token.ADD_ASSIGN: reflect.ValueOf(add),
+}

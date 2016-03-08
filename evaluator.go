@@ -60,17 +60,40 @@ func compileStmt(stmt ast.Stmt) apast.Stmt {
 	//case *ast.IncDecStmt:
 	//	return nil
 	case *ast.AssignStmt:
-		lhs := []apast.Expr{}
-		rhs := []apast.Expr{}
-		for _, lhsExpr := range stmt.Lhs {
-			lhs = append(lhs, compileExpr(lhsExpr))
-		}
-		for _, rhsExpr := range stmt.Rhs {
-			rhs = append(rhs, compileExpr(rhsExpr))
-		}
-		return &apast.AssignStmt{
-			lhs,
-			rhs,
+		if stmt.Tok == token.DEFINE || stmt.Tok == token.ASSIGN {
+			lhs := []apast.Expr{}
+			rhs := []apast.Expr{}
+			for _, lhsExpr := range stmt.Lhs {
+				lhs = append(lhs, compileExpr(lhsExpr))
+			}
+			for _, rhsExpr := range stmt.Rhs {
+				rhs = append(rhs, compileExpr(rhsExpr))
+			}
+			return &apast.AssignStmt{
+				lhs,
+				rhs,
+			}
+		} else {
+			if len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
+				panic("Unexpected multiple assign")
+			}
+			// TODO: We should only evaluate the left side once,
+			// e.g. array index values.
+			compiledLhs := compileExpr(stmt.Lhs[0])
+			return &apast.AssignStmt{
+				[]apast.Expr{compiledLhs},
+				[]apast.Expr{
+					&apast.FuncCallExpr{
+						&apast.LiteralExpr{
+							apruntime.AssignBinaryOperators[stmt.Tok],
+						},
+						[]apast.Expr{
+							compiledLhs,
+							compileExpr(stmt.Rhs[0]),
+						},
+					},
+				},
+			}
 		}
 	//case *ast.GoStmt:
 	//	return nil
