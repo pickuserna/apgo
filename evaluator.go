@@ -160,8 +160,10 @@ func compileExpr(expr ast.Expr) apast.Expr {
 	//case *ast.UnaryExpr:
 	//	return nil
 	case *ast.BinaryExpr:
-		return &apast.BuiltinExpr{
-			apruntime.BinaryOperators[expr.Op],
+		return &apast.FuncCallExpr{
+			&apast.LiteralExpr{
+				apruntime.BinaryOperators[expr.Op],
+			},
 			[]apast.Expr{compileExpr(expr.X), compileExpr(expr.Y)},
 		}
 	//case *ast.KeyValueExpr:
@@ -215,12 +217,6 @@ func evaluateStmt(ctx apruntime.Context, stmt apast.Stmt) {
 
 func evaluateExpr(ctx apruntime.Context, expr apast.Expr) reflect.Value {
 	switch expr := expr.(type) {
-	case *apast.BuiltinExpr:
-		argValues := []reflect.Value{}
-		for _, argExpr := range expr.Args {
-			argValues = append(argValues, evaluateExpr(ctx, argExpr))
-		}
-		return expr.Eval(ctx, argValues)
 	case *apast.FuncCallExpr:
 		funcValue := evaluateExpr(ctx, expr.Func)
 		argValues := []reflect.Value{}

@@ -6,7 +6,6 @@
 package apast
 
 import (
-	"github.com/alangpierce/apgo/apruntime"
 	"reflect"
 )
 
@@ -35,11 +34,6 @@ type Expr interface {
 	apexprNode()
 }
 
-type BuiltinExpr struct {
-	Eval apruntime.BuiltinFunc
-	Args []Expr
-}
-
 type FuncCallExpr struct {
 	Func Expr
 	Args []Expr
@@ -53,7 +47,6 @@ type LiteralExpr struct {
 	Val reflect.Value
 }
 
-func (*BuiltinExpr) apexprNode() {}
 func (*FuncCallExpr) apexprNode() {}
 func (*IdentExpr) apexprNode() {}
 func (*LiteralExpr) apexprNode() {}

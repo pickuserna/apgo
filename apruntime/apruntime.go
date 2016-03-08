@@ -9,10 +9,11 @@ import (
 type Context map[string]reflect.Value
 type BuiltinFunc func (ctx Context, args []reflect.Value) reflect.Value
 
-func add(ctx Context, args []reflect.Value) reflect.Value {
-	return reflect.ValueOf(args[0].Int() + args[1].Int())
+func add(x interface{}, y interface{}) interface{} {
+	// TODO: Handle other types.
+	return reflect.ValueOf(x).Int() + reflect.ValueOf(y).Int()
 }
 
-var BinaryOperators = map[token.Token]BuiltinFunc{
-	token.ADD: add,
+var BinaryOperators = map[token.Token]reflect.Value{
+	token.ADD: reflect.ValueOf(add),
 }
