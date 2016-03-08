@@ -3,6 +3,6 @@ package main
 import "fmt"
 
 func main() {
-	fmt.Print("First line\n")
-	fmt.Print("Second line\n")
+	x := 1 + 1
+	fmt.Print("One plus one is ", x, "\n")
 }
