@@ -11,6 +11,27 @@ import (
 	"strings"
 )
 
+func CompilePackage(pack *ast.Package) *apast.Package {
+	funcs := make(map[string]*apast.FuncDecl)
+	for _, file := range pack.Files {
+		for _, decl := range file.Decls {
+			switch decl := decl.(type) {
+			case *ast.FuncDecl:
+				funcs[decl.Name.Name] = CompileFuncDecl(decl)
+			}
+		}
+	}
+	return &apast.Package{
+		funcs,
+	}
+}
+
+func CompileFuncDecl(funcDecl *ast.FuncDecl) *apast.FuncDecl {
+	return &apast.FuncDecl{
+		CompileStmt(funcDecl.Body),
+	}
+}
+
 func CompileStmt(stmt ast.Stmt) apast.Stmt {
 	switch stmt := stmt.(type) {
 	//case *ast.BadStmt:

@@ -9,6 +9,14 @@ import (
 	"reflect"
 )
 
+type Package struct {
+	Funcs map[string]*FuncDecl
+}
+
+type FuncDecl struct {
+	Body Stmt
+}
+
 type Stmt interface {
 	apstmtNode()
 }
