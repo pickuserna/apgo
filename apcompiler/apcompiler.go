@@ -11,13 +11,17 @@ import (
 	"strings"
 )
 
-func CompilePackage(pack *ast.Package) *apast.Package {
+type CompileCtx struct {
+	NativePackages map[string]*apruntime.NativePackage
+}
+
+func CompilePackage(ctx CompileCtx, pack *ast.Package) *apast.Package {
 	funcs := make(map[string]*apast.FuncDecl)
 	for _, file := range pack.Files {
 		for _, decl := range file.Decls {
 			switch decl := decl.(type) {
 			case *ast.FuncDecl:
-				funcs[decl.Name.Name] = CompileFuncDecl(decl)
+				funcs[decl.Name.Name] = CompileFuncDecl(ctx, decl)
 			}
 		}
 	}
@@ -26,13 +30,13 @@ func CompilePackage(pack *ast.Package) *apast.Package {
 	}
 }
 
-func CompileFuncDecl(funcDecl *ast.FuncDecl) *apast.FuncDecl {
+func CompileFuncDecl(ctx CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
 	return &apast.FuncDecl{
-		CompileStmt(funcDecl.Body),
+		CompileStmt(ctx, funcDecl.Body),
 	}
 }
 
-func CompileStmt(stmt ast.Stmt) apast.Stmt {
+func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 	switch stmt := stmt.(type) {
 	//case *ast.BadStmt:
 	//	return nil
@@ -44,7 +48,7 @@ func CompileStmt(stmt ast.Stmt) apast.Stmt {
 	//	return nil
 	case *ast.ExprStmt:
 		return &apast.ExprStmt{
-			compileExpr(stmt.X),
+			compileExpr(ctx, stmt.X),
 		}
 	//case *ast.SendStmt:
 	//	return nil
@@ -55,10 +59,10 @@ func CompileStmt(stmt ast.Stmt) apast.Stmt {
 			lhs := []apast.Expr{}
 			rhs := []apast.Expr{}
 			for _, lhsExpr := range stmt.Lhs {
-				lhs = append(lhs, compileExpr(lhsExpr))
+				lhs = append(lhs, compileExpr(ctx, lhsExpr))
 			}
 			for _, rhsExpr := range stmt.Rhs {
-				rhs = append(rhs, compileExpr(rhsExpr))
+				rhs = append(rhs, compileExpr(ctx, rhsExpr))
 			}
 			return &apast.AssignStmt{
 				lhs,
@@ -70,7 +74,7 @@ func CompileStmt(stmt ast.Stmt) apast.Stmt {
 			}
 			// TODO: We should only evaluate the left side once,
 			// e.g. array index values.
-			compiledLhs := compileExpr(stmt.Lhs[0])
+			compiledLhs := compileExpr(ctx, stmt.Lhs[0])
 			return &apast.AssignStmt{
 				[]apast.Expr{compiledLhs},
 				[]apast.Expr{
@@ -80,7 +84,7 @@ func CompileStmt(stmt ast.Stmt) apast.Stmt {
 						},
 						[]apast.Expr{
 							compiledLhs,
-							compileExpr(stmt.Rhs[0]),
+							compileExpr(ctx, stmt.Rhs[0]),
 						},
 					},
 				},
@@ -97,7 +101,7 @@ func CompileStmt(stmt ast.Stmt) apast.Stmt {
 	case *ast.BlockStmt:
 		stmts := []apast.Stmt{}
 		for _, subStmt := range stmt.List {
-			stmts = append(stmts, CompileStmt(subStmt))
+			stmts = append(stmts, CompileStmt(ctx, subStmt))
 		}
 		return &apast.BlockStmt{
 			stmts,
@@ -123,7 +127,7 @@ func CompileStmt(stmt ast.Stmt) apast.Stmt {
 	}
 }
 
-func compileExpr(expr ast.Expr) apast.Expr {
+func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	switch expr := expr.(type) {
 	//case *ast.BadExpr:
 	//	return nil
@@ -147,10 +151,8 @@ func compileExpr(expr ast.Expr) apast.Expr {
 		if leftSide, ok := expr.X.(*ast.Ident); ok {
 			packageName := leftSide.Name
 			funcName := expr.Sel.Name
-			if packageName == "fmt" && funcName == "Print" {
-				return &apast.LiteralExpr{
-					reflect.ValueOf(fmt.Print),
-				}
+			return &apast.LiteralExpr{
+				reflect.ValueOf(ctx.NativePackages[packageName].Funcs[funcName]),
 			}
 		}
 		return nil
@@ -163,10 +165,10 @@ func compileExpr(expr ast.Expr) apast.Expr {
 	case *ast.CallExpr:
 		compiledArgs := []apast.Expr{}
 		for _, arg := range expr.Args {
-			compiledArgs = append(compiledArgs, compileExpr(arg))
+			compiledArgs = append(compiledArgs, compileExpr(ctx, arg))
 		}
 		return &apast.FuncCallExpr{
-			compileExpr(expr.Fun),
+			compileExpr(ctx, expr.Fun),
 			compiledArgs,
 		}
 	//case *ast.StarExpr:
@@ -178,7 +180,7 @@ func compileExpr(expr ast.Expr) apast.Expr {
 			&apast.LiteralExpr{
 				apruntime.BinaryOperators[expr.Op],
 			},
-			[]apast.Expr{compileExpr(expr.X), compileExpr(expr.Y)},
+			[]apast.Expr{compileExpr(ctx, expr.X), compileExpr(ctx, expr.Y)},
 		}
 	//case *ast.KeyValueExpr:
 	//	return nil

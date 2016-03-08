@@ -12,11 +12,13 @@ import (
 
 type Interpreter struct {
 	packages map[string]*apast.Package
+	nativePackages map[string]*apruntime.NativePackage
 }
 
 func NewInterpreter() *Interpreter {
 	return &Interpreter{
 		packages: make(map[string]*apast.Package),
+		nativePackages: make(map[string]*apruntime.NativePackage),
 	}
 }
 
@@ -27,10 +29,17 @@ func (interpreter *Interpreter) LoadPackage(dirPath string) error {
 	if err != nil {
 		return err
 	}
+	compileCtx := apcompiler.CompileCtx{
+		interpreter.nativePackages,
+	}
 	for name, packageAst := range packageAsts{
-		interpreter.packages[name] = apcompiler.CompilePackage(packageAst)
+		interpreter.packages[name] = apcompiler.CompilePackage(compileCtx, packageAst)
 	}
 	return nil
+}
+
+func (interpreter *Interpreter) LoadNativePackage(pack *apruntime.NativePackage) {
+	interpreter.nativePackages[pack.Name] = pack
 }
 
 func (interpreter *Interpreter) RunMain() {
