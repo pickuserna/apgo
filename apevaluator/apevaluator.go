@@ -29,6 +29,17 @@ func EvaluateStmt(ctx apruntime.Context, stmt apast.Stmt) {
 				ctx[lvalue.Name] = value
 			}
 		}
+	case *apast.EmptyStmt:
+		// Do nothing.
+	case *apast.IfStmt:
+		// TODO: Handle scopes properly, if necessary.
+		EvaluateStmt(ctx, stmt.Init)
+		condValue := evaluateExpr(ctx, stmt.Cond)
+		if condValue.Interface().(bool) {
+			EvaluateStmt(ctx, stmt.Body)
+		} else {
+			EvaluateStmt(ctx, stmt.Else)
+		}
 	default:
 		panic(fmt.Sprint("Statement eval not implemented: ", reflect.TypeOf(stmt)))
 	}

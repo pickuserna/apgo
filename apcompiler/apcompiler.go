@@ -107,21 +107,34 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 			stmts,
 		}
 	case *ast.IfStmt:
-		return nil
-	case *ast.CaseClause:
-		return nil
-	case *ast.SwitchStmt:
-		return nil
-	case *ast.TypeSwitchStmt:
-		return nil
-	case *ast.CommClause:
-		return nil
-	case *ast.SelectStmt:
-		return nil
-	case *ast.ForStmt:
-		return nil
-	case *ast.RangeStmt:
-		return nil
+		var result apast.IfStmt
+		if stmt.Init != nil {
+			result.Init = CompileStmt(ctx, stmt.Init)
+		} else {
+			result.Init = &apast.EmptyStmt{}
+		}
+		result.Cond = compileExpr(ctx, stmt.Cond)
+		result.Body = CompileStmt(ctx, stmt.Body)
+		if stmt.Else != nil {
+			result.Else = CompileStmt(ctx, stmt.Else)
+		} else {
+			result.Else = &apast.EmptyStmt{}
+		}
+		return &result
+	//case *ast.CaseClause:
+	//	return nil
+	//case *ast.SwitchStmt:
+	//	return nil
+	//case *ast.TypeSwitchStmt:
+	//	return nil
+	//case *ast.CommClause:
+	//	return nil
+	//case *ast.SelectStmt:
+	//	return nil
+	//case *ast.ForStmt:
+	//	return nil
+	//case *ast.RangeStmt:
+	//	return nil
 	default:
 		panic(fmt.Sprint("Statement compile not implemented: ", reflect.TypeOf(stmt)))
 	}

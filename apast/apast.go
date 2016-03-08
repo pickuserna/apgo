@@ -34,9 +34,22 @@ type BlockStmt struct {
 	Stmts []Stmt
 }
 
+type EmptyStmt struct {
+}
+
+// All fields are required.
+type IfStmt struct {
+	Init Stmt
+	Cond Expr
+	Body Stmt
+	Else Stmt
+}
+
 func (*ExprStmt) apstmtNode() {}
-func (*BlockStmt) apstmtNode() {}
 func (*AssignStmt) apstmtNode() {}
+func (*BlockStmt) apstmtNode() {}
+func (*EmptyStmt) apstmtNode() {}
+func (*IfStmt) apstmtNode() {}
 
 type Expr interface {
 	apexprNode()
