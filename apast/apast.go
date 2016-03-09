@@ -7,6 +7,7 @@ package apast
 
 import (
 	"reflect"
+	"fmt"
 )
 
 type Package struct {
@@ -77,3 +78,14 @@ type LiteralExpr struct {
 func (*FuncCallExpr) apexprNode() {}
 func (*IdentExpr) apexprNode() {}
 func (*LiteralExpr) apexprNode() {}
+
+
+func (e *FuncCallExpr) String() string {
+	return fmt.Sprintf("FuncCall{%s,%s}", e.Func, e.Args)
+}
+func (e *IdentExpr) String() string {
+	return fmt.Sprintf("Ident{%s}", e.Name)
+}
+func (e *LiteralExpr) String() string {
+	return fmt.Sprintf("Literal{%s}", e.Val.Interface())
+}

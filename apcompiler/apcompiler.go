@@ -51,8 +51,39 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 	switch stmt := stmt.(type) {
 	//case *ast.BadStmt:
 	//	return nil
-	//case *ast.DeclStmt:
-	//	return nil
+	case *ast.DeclStmt:
+		switch decl := stmt.Decl.(type) {
+		case *ast.GenDecl:
+			// Turn a declaration into assignment to the zero value.
+			// For example, `var x, y int` becomes `x, y = 0, 0`
+			varsToInit := []apast.Expr{}
+			zeroTerms := []apast.Expr{}
+			for _, spec := range decl.Specs {
+				switch spec := spec.(type) {
+				case *ast.ValueSpec:
+					zeroValue := reflect.ValueOf(getZeroValue(spec.Type))
+					for _, ident := range spec.Names {
+						varsToInit = append(varsToInit, &apast.IdentExpr{
+							ident.Name,
+						})
+						zeroTerms = append(zeroTerms, &apast.LiteralExpr{
+							zeroValue,
+						})
+					}
+				default:
+					panic("Unexpected spec")
+					return nil
+				}
+			}
+
+			return &apast.AssignStmt{
+				varsToInit,
+				zeroTerms,
+			}
+		default:
+			panic("Unexpected declaration")
+			return nil
+		}
 	//case *ast.EmptyStmt:
 	//	return nil
 	//case *ast.LabeledStmt:
@@ -154,6 +185,7 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 	//	return nil
 	default:
 		panic(fmt.Sprint("Statement compile not implemented: ", reflect.TypeOf(stmt)))
+		return nil
 	}
 }
 
@@ -184,7 +216,7 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 				panic(fmt.Sprint("Unknown package ", leftSide.Name))
 			}
 			funcVal := nativePackage.Funcs[expr.Sel.Name]
-			if nativePackage == nil {
+			if funcVal == nil {
 				panic(fmt.Sprint("Unknown function ", expr.Sel.Name))
 			}
 			return &apast.LiteralExpr{reflect.ValueOf(funcVal)}
@@ -250,12 +282,13 @@ func parseLiteral(val string, kind token.Token) interface{} {
 		return nil
 	case token.INT:
 		// Note that base 0 means that octal and hex literals are also
-		// handled.
-		result, err := strconv.ParseInt(val, 0, 64)
+		// handled. We also treat the number as an int instead of an
+		// int64 so that comparisons work right.
+		result, err := strconv.ParseInt(val, 0, 0)
 		if err != nil {
 			panic(err)
 		}
-		return result
+		return int(result)
 	case token.FLOAT:
 		panic("TODO")
 		return nil
@@ -278,4 +311,17 @@ func parseString(codeString string) string {
 	// TODO: Replace with an implementation that properly escapes
 	// everything.
 	return strings.Replace(strWithoutQuotes, "\\n", "\n", -1)
+}
+
+func getZeroValue(t ast.Expr) interface{} {
+	if t, ok := t.(*ast.Ident); ok {
+		switch t.Name {
+		case "int":
+			return 0
+		default:
+			panic("Zero for type not implemented")
+		}
+	} else {
+		panic("Zero for non-identifier types not implemented")
+	}
 }

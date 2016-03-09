@@ -50,6 +50,15 @@ func (ctx *Context) resolveValue(name string) reflect.Value {
 	}
 }
 
+func (ctx *Context) isNameValid(name string) bool {
+	if _, ok := ctx.Locals[name]; ok {
+		return true
+	} else if _, ok := ctx.PackageValues[name]; ok {
+		return true
+	}
+	return false
+}
+
 func (ctx *Context) assignValue(name string, value reflect.Value) {
 	ctx.Locals[name] = value
 }

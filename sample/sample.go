@@ -31,10 +31,17 @@ func testFunctions() {
 	assertEqual(2, addOne(1))
 }
 
+func testVariables() {
+	var x, y int
+	assertEqual(0, x)
+	assertEqual(0, y)
+}
+
 func main() {
 	start := time.Now()
 	testMath()
 	testFunctions()
-	fmt.Print("Pass!")
+	testVariables()
+	fmt.Println("Pass!")
 	fmt.Println("Took ", time.Since(start))
 }

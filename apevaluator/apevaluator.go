@@ -68,6 +68,11 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 func evaluateExpr(ctx *Context, expr apast.Expr) reflect.Value {
 	switch expr := expr.(type) {
 	case *apast.FuncCallExpr:
+		maybeBuiltin := resolveBuiltin(ctx, expr)
+		if (maybeBuiltin != nil) {
+			return maybeBuiltin()
+		}
+
 		funcValue := evaluateExpr(ctx, expr.Func)
 		argValues := []reflect.Value{}
 		for _, argExpr := range expr.Args {

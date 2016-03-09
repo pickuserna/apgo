@@ -15,8 +15,11 @@ type NativePackage struct {
 }
 
 func add(x interface{}, y interface{}) interface{} {
-	// TODO: Handle other types.
-	return reflect.ValueOf(x).Int() + reflect.ValueOf(y).Int()
+	sum := reflect.ValueOf(x).Int() + reflect.ValueOf(y).Int()
+	// Since this is a well-formed operation, the two types must be the
+	// same, so convert to that type.
+	// TODO: Handle other types, like floats.
+	return reflect.ValueOf(sum).Convert(reflect.TypeOf(x)).Interface()
 }
 
 func sub(x interface{}, y interface{}) interface{} {
@@ -67,6 +70,7 @@ var FmtPackage = &NativePackage{
 	Funcs: map[string]interface{} {
 		"Print": fmt.Print,
 		"Println": fmt.Println,
+		"Sprint": fmt.Sprint,
 	},
 	Globals: map[string]*interface{} {},
 }
