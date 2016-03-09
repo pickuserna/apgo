@@ -43,6 +43,10 @@ func equal(x interface{}, y interface{}) interface{} {
 	return x == y
 }
 
+func neq(x interface{}, y interface{}) interface{} {
+	return x != y
+}
+
 
 var BinaryOperators = map[token.Token]reflect.Value{
 	token.ADD: reflect.ValueOf(add),
@@ -51,6 +55,7 @@ var BinaryOperators = map[token.Token]reflect.Value{
 	token.GTR: reflect.ValueOf(greater),
 	token.LOR: reflect.ValueOf(lor),
 	token.EQL: reflect.ValueOf(equal),
+	token.NEQ: reflect.ValueOf(neq),
 }
 
 var AssignBinaryOperators = map[token.Token]reflect.Value{

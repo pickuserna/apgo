@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+func assertEqual(a interface{}, b interface{}) {
+	if a != b {
+		panic(fmt.Sprint("Expected ", a, ", but got ", b))
+	}
+}
+
 func fib(n int) int {
 	if n < 2 {
 		return 1
@@ -16,16 +22,24 @@ func addOne(x int) int {
 	return x + 1
 }
 
-func main() {
-	x := 1 + 1
-	x = addOne(x)
-	if x > 2 {
-		fmt.Println("x is greater than 2")
-	} else {
-		fmt.Println("x is not greater than 2")
-	}
-	n := 26
+func testMath() {
+	assertEqual(2, 1 + 1)
+}
+
+func testFunctions() {
+	assertEqual(5, fib(4))
+	assertEqual(2, addOne(1))
+}
+
+func testPerf() {
 	start := time.Now()
-	fmt.Println("fib(", n, ") is ", fib(n))
+	fib(10)
 	fmt.Println("Took ", time.Since(start))
+}
+
+func main() {
+	testMath()
+	testFunctions()
+	testPerf()
+	fmt.Print("Pass!")
 }
