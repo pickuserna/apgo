@@ -179,11 +179,15 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	//	return nil
 	case *ast.SelectorExpr:
 		if leftSide, ok := expr.X.(*ast.Ident); ok {
-			packageName := leftSide.Name
-			funcName := expr.Sel.Name
-			return &apast.LiteralExpr{
-				reflect.ValueOf(ctx.NativePackages[packageName].Funcs[funcName]),
+			nativePackage := ctx.NativePackages[leftSide.Name]
+			if nativePackage == nil {
+				panic(fmt.Sprint("Unknown package ", leftSide.Name))
 			}
+			funcVal := nativePackage.Funcs[expr.Sel.Name]
+			if nativePackage == nil {
+				panic(fmt.Sprint("Unknown function ", expr.Sel.Name))
+			}
+			return &apast.LiteralExpr{reflect.ValueOf(funcVal)}
 		}
 		panic(fmt.Sprint("Selector not found ", expr))
 		return nil
@@ -207,11 +211,15 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	//case *ast.UnaryExpr:
 	//	return nil
 	case *ast.BinaryExpr:
-		return &apast.FuncCallExpr{
-			&apast.LiteralExpr{
-				apruntime.BinaryOperators[expr.Op],
-			},
-			[]apast.Expr{compileExpr(ctx, expr.X), compileExpr(ctx, expr.Y)},
+		if op, ok := apruntime.BinaryOperators[expr.Op]; ok {
+			return &apast.FuncCallExpr{
+				&apast.LiteralExpr{
+					op,
+				},
+				[]apast.Expr{compileExpr(ctx, expr.X), compileExpr(ctx, expr.Y)},
+			}
+		} else {
+			panic(fmt.Sprint("Operator not implemented: ", expr.Op))
 		}
 	//case *ast.KeyValueExpr:
 	//	return nil

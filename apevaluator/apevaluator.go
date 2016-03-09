@@ -22,6 +22,11 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 	case *apast.BlockStmt:
 		for _, line := range stmt.Stmts {
 			EvaluateStmt(ctx, line)
+			// If this sub-statement returned, we don't want to
+			// continue any further.
+			if ctx.returnValues != nil {
+				return
+			}
 		}
 	case *apast.AssignStmt:
 		if len(stmt.Lhs) != len(stmt.Rhs) {

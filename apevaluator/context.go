@@ -9,6 +9,11 @@ import (
 type Context struct {
 	Locals map[string]reflect.Value
 	PackageValues map[string]reflect.Value
+	// Slice of return values, or nil if the function hasn't returned yet.
+	// This is used both for the values themselves and to communicate
+	// control flow. For example, a function returning nothing should have
+	// returnValues set to the empty slice upon returning, which signals to
+	// other code that we want to finish the function now.
 	returnValues []reflect.Value
 }
 
