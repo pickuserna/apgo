@@ -31,15 +31,10 @@ func testFunctions() {
 	assertEqual(2, addOne(1))
 }
 
-func testPerf() {
-	start := time.Now()
-	fib(10)
-	fmt.Println("Took ", time.Since(start))
-}
-
 func main() {
+	start := time.Now()
 	testMath()
 	testFunctions()
-	testPerf()
 	fmt.Print("Pass!")
+	fmt.Println("Took ", time.Since(start))
 }
