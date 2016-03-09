@@ -47,6 +47,17 @@ type IfStmt struct {
 	Else Stmt
 }
 
+// All fields are required.
+type ForStmt struct {
+	Init Stmt
+	Cond Expr
+	Post Stmt
+	Body Stmt
+}
+
+type BreakStmt struct {
+}
+
 type ReturnStmt struct {
 	Results []Expr
 }
@@ -56,6 +67,8 @@ func (*AssignStmt) apstmtNode() {}
 func (*BlockStmt) apstmtNode() {}
 func (*EmptyStmt) apstmtNode() {}
 func (*IfStmt) apstmtNode() {}
+func (*ForStmt) apstmtNode() {}
+func (*BreakStmt) apstmtNode() {}
 func (*ReturnStmt) apstmtNode() {}
 
 type Expr interface {

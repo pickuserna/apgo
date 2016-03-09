@@ -24,7 +24,7 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 			EvaluateStmt(ctx, line)
 			// If this sub-statement returned, we don't want to
 			// continue any further.
-			if ctx.returnValues != nil {
+			if ctx.returnValues != nil || ctx.shouldBreak {
 				return
 			}
 		}
@@ -40,6 +40,8 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 			lvalue := stmt.Lhs[i]
 			if lvalue, ok := lvalue.(*apast.IdentExpr); ok {
 				ctx.assignValue(lvalue.Name, value)
+			} else {
+				panic("Only assignment to identifiers supported for now.")
 			}
 		}
 	case *apast.EmptyStmt:
@@ -53,6 +55,23 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 		} else {
 			EvaluateStmt(ctx, stmt.Else)
 		}
+	case *apast.ForStmt:
+		// TODO: Handle scopes properly, if necessary.
+		EvaluateStmt(ctx, stmt.Init)
+		for {
+			condValue := evaluateExpr(ctx, stmt.Cond)
+			if !condValue.Interface().(bool) {
+				break
+			}
+			EvaluateStmt(ctx, stmt.Body)
+			if ctx.shouldBreak {
+				ctx.shouldBreak = false
+				break
+			}
+			EvaluateStmt(ctx, stmt.Post)
+		}
+	case *apast.BreakStmt:
+		ctx.shouldBreak = true
 	case *apast.ReturnStmt:
 		returnValues := []reflect.Value{}
 		for _, result := range stmt.Results {

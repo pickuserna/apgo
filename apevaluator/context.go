@@ -15,6 +15,7 @@ type Context struct {
 	// returnValues set to the empty slice upon returning, which signals to
 	// other code that we want to finish the function now.
 	returnValues []reflect.Value
+	shouldBreak bool
 }
 
 func NewContext(pack *apast.Package) *Context {

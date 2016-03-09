@@ -94,8 +94,26 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 		}
 	//case *ast.SendStmt:
 	//	return nil
-	//case *ast.IncDecStmt:
-	//	return nil
+	case *ast.IncDecStmt:
+		compiledLhs := compileExpr(ctx, stmt.X)
+		// TODO: This compiles into an expression that evaluates the
+		// left side twice.
+		return &apast.AssignStmt{
+			[]apast.Expr{compiledLhs},
+			[]apast.Expr{
+				&apast.FuncCallExpr{
+					&apast.LiteralExpr{
+						apruntime.IncDecOperators[stmt.Tok],
+					},
+					[]apast.Expr{
+						compiledLhs,
+						&apast.LiteralExpr{
+							reflect.ValueOf(1),
+						},
+					},
+				},
+			},
+		}
 	case *ast.AssignStmt:
 		if stmt.Tok == token.DEFINE || stmt.Tok == token.ASSIGN {
 			lhs := []apast.Expr{}
@@ -117,6 +135,9 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 			// TODO: We should only evaluate the left side once,
 			// e.g. array index values.
 			compiledLhs := compileExpr(ctx, stmt.Lhs[0])
+			if _, ok := apruntime.AssignBinaryOperators[stmt.Tok]; !ok {
+				panic(fmt.Sprint("Operator not implemented: ", stmt.Tok))
+			}
 			return &apast.AssignStmt{
 				[]apast.Expr{compiledLhs},
 				[]apast.Expr{
@@ -144,8 +165,14 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 		return &apast.ReturnStmt{
 			resultsExprs,
 		}
-	//case *ast.BranchStmt:
-	//	return nil
+	case *ast.BranchStmt:
+		switch stmt.Tok {
+		case token.BREAK:
+			return &apast.BreakStmt{}
+		default:
+			panic(fmt.Sprint("Unsupported branch statement: ", stmt.Tok))
+			return nil
+		}
 	case *ast.BlockStmt:
 		stmts := []apast.Stmt{}
 		for _, subStmt := range stmt.List {
@@ -179,8 +206,27 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 	//	return nil
 	//case *ast.SelectStmt:
 	//	return nil
-	//case *ast.ForStmt:
-	//	return nil
+	case *ast.ForStmt:
+		var result apast.ForStmt
+		if stmt.Init != nil {
+			result.Init = CompileStmt(ctx, stmt.Init)
+		} else {
+			result.Init = &apast.EmptyStmt{}
+		}
+		if stmt.Cond != nil {
+			result.Cond = compileExpr(ctx, stmt.Cond)
+		} else {
+			result.Cond = &apast.LiteralExpr{
+				reflect.ValueOf(true),
+			}
+		}
+		if stmt.Post != nil {
+			result.Post = CompileStmt(ctx, stmt.Post)
+		} else {
+			result.Post = &apast.EmptyStmt{}
+		}
+		result.Body = CompileStmt(ctx, stmt.Body)
+		return &result
 	//case *ast.RangeStmt:
 	//	return nil
 	default:

@@ -37,11 +37,31 @@ func testVariables() {
 	assertEqual(0, y)
 }
 
+func testForLoop() {
+	result := 1
+	var i int
+	for {
+		result *= 2
+		i++
+		if i >= 5 {
+			break
+		}
+	}
+	assertEqual(32, result)
+
+	sum := 0
+	for j := 0; j <= 5; j++ {
+		sum += j
+	}
+	assertEqual(15, sum)
+}
+
 func main() {
 	start := time.Now()
 	testMath()
 	testFunctions()
 	testVariables()
+	testForLoop()
 	fmt.Println("Pass!")
 	fmt.Println("Took ", time.Since(start))
 }
