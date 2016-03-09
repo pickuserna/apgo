@@ -14,7 +14,8 @@ type Package struct {
 }
 
 type FuncDecl struct {
-	Body Stmt
+	Body       Stmt
+	ParamNames []string
 }
 
 type Stmt interface {
@@ -45,11 +46,16 @@ type IfStmt struct {
 	Else Stmt
 }
 
+type ReturnStmt struct {
+	Results []Expr
+}
+
 func (*ExprStmt) apstmtNode() {}
 func (*AssignStmt) apstmtNode() {}
 func (*BlockStmt) apstmtNode() {}
 func (*EmptyStmt) apstmtNode() {}
 func (*IfStmt) apstmtNode() {}
+func (*ReturnStmt) apstmtNode() {}
 
 type Expr interface {
 	apexprNode()

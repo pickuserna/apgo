@@ -1,13 +1,21 @@
 package apevaluator
 
 import (
-	"github.com/alangpierce/apgo/apruntime"
 	"github.com/alangpierce/apgo/apast"
 	"reflect"
 	"fmt"
 )
 
-func EvaluateStmt(ctx apruntime.Context, stmt apast.Stmt) {
+func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []reflect.Value {
+	ctx := NewContext(pack)
+	for i, argName := range funcAst.ParamNames {
+		ctx.assignValue(argName, reflect.ValueOf(args[i]))
+	}
+	EvaluateStmt(ctx, funcAst.Body)
+	return ctx.returnValues
+}
+
+func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 	switch stmt := stmt.(type) {
 	case *apast.ExprStmt:
 		evaluateExpr(ctx, stmt.E)
@@ -26,7 +34,7 @@ func EvaluateStmt(ctx apruntime.Context, stmt apast.Stmt) {
 		for i, value := range values {
 			lvalue := stmt.Lhs[i]
 			if lvalue, ok := lvalue.(*apast.IdentExpr); ok {
-				ctx[lvalue.Name] = value
+				ctx.assignValue(lvalue.Name, value)
 			}
 		}
 	case *apast.EmptyStmt:
@@ -40,13 +48,19 @@ func EvaluateStmt(ctx apruntime.Context, stmt apast.Stmt) {
 		} else {
 			EvaluateStmt(ctx, stmt.Else)
 		}
+	case *apast.ReturnStmt:
+		returnValues := []reflect.Value{}
+		for _, result := range stmt.Results {
+			returnValues = append(returnValues, evaluateExpr(ctx, result))
+		}
+		ctx.returnValues = returnValues
 	default:
 		panic(fmt.Sprint("Statement eval not implemented: ", reflect.TypeOf(stmt)))
 	}
 }
 
 
-func evaluateExpr(ctx apruntime.Context, expr apast.Expr) reflect.Value {
+func evaluateExpr(ctx *Context, expr apast.Expr) reflect.Value {
 	switch expr := expr.(type) {
 	case *apast.FuncCallExpr:
 		funcValue := evaluateExpr(ctx, expr.Func)
@@ -57,7 +71,7 @@ func evaluateExpr(ctx apruntime.Context, expr apast.Expr) reflect.Value {
 		// TODO: Handle multiple return values.
 		return funcValue.Call(argValues)[0]
 	case *apast.IdentExpr:
-		return ctx[expr.Name]
+		return ctx.resolveValue(expr.Name)
 	case *apast.LiteralExpr:
 		return expr.Val
 	default:

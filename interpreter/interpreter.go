@@ -45,6 +45,6 @@ func (interpreter *Interpreter) LoadNativePackage(pack *apruntime.NativePackage)
 func (interpreter *Interpreter) RunMain() {
 	mainPackage := interpreter.packages["main"]
 	mainFunc := mainPackage.Funcs["main"]
-	ctx := make(apruntime.Context)
+	ctx := apevaluator.NewContext(mainPackage)
 	apevaluator.EvaluateStmt(ctx, mainFunc.Body)
 }

@@ -31,8 +31,19 @@ func CompilePackage(ctx CompileCtx, pack *ast.Package) *apast.Package {
 }
 
 func CompileFuncDecl(ctx CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
+	paramNames := []string{}
+	for _, param := range funcDecl.Type.Params.List {
+		if param.Names == nil {
+			paramNames = append(paramNames, "_")
+		} else if len(param.Names) == 1 {
+			paramNames = append(paramNames, param.Names[0].Name)
+		} else {
+			panic("Unexpected number of parameter names.")
+		}
+	}
 	return &apast.FuncDecl{
 		CompileStmt(ctx, funcDecl.Body),
+		paramNames,
 	}
 }
 
@@ -94,8 +105,14 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 	//	return nil
 	//case *ast.DeferStmt:
 	//	return nil
-	//case *ast.ReturnStmt:
-	//	return nil
+	case *ast.ReturnStmt:
+		resultsExprs := []apast.Expr{}
+		for _, result := range stmt.Results {
+			resultsExprs = append(resultsExprs, compileExpr(ctx, result))
+		}
+		return &apast.ReturnStmt{
+			resultsExprs,
+		}
 	//case *ast.BranchStmt:
 	//	return nil
 	case *ast.BlockStmt:
@@ -168,6 +185,7 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 				reflect.ValueOf(ctx.NativePackages[packageName].Funcs[funcName]),
 			}
 		}
+		panic(fmt.Sprint("Selector not found ", expr))
 		return nil
 	//case *ast.IndexExpr:
 	//	return nil
@@ -212,8 +230,8 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	//	return nil
 	default:
 		panic(fmt.Sprint("Expression compile not implemented: ", reflect.TypeOf(expr)))
+		return nil
 	}
-	return nil
 }
 
 // parseLiteral takes a primitive literal and returns it as a value.

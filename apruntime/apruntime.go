@@ -7,9 +7,6 @@ import (
 	"fmt"
 )
 
-type Context map[string]reflect.Value
-type BuiltinFunc func (ctx Context, args []reflect.Value) reflect.Value
-
 type NativePackage struct {
 	Name string
 	Funcs map[string]interface{}
