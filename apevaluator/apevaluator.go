@@ -103,7 +103,28 @@ func evaluateExpr(ctx *Context, expr apast.Expr) reflect.Value {
 		return ctx.resolveValue(expr.Name)
 	case *apast.LiteralExpr:
 		return expr.Val
+	case *apast.SliceLiteralExpr:
+		typ := evaluateType(expr.Type)
+		result := reflect.MakeSlice(
+			reflect.SliceOf(typ), len(expr.Vals), len(expr.Vals))
+		for i, val := range expr.Vals {
+			result.Index(i).Set(evaluateExpr(ctx, val))
+		}
+		return result
 	default:
 		panic(fmt.Sprint("Expression eval not implemented: ", reflect.TypeOf(expr)))
+	}
+}
+
+func evaluateType(expr apast.Expr) reflect.Type {
+	switch expr := expr.(type) {
+	case *apast.IdentExpr:
+		if expr.Name == "int" {
+			return reflect.TypeOf(0)
+		} else {
+			panic(fmt.Sprint("Type not implemented: ", expr.Name))
+		}
+	default:
+		panic(fmt.Sprint("Type expression not implemented: ", reflect.TypeOf(expr)))
 	}
 }

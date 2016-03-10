@@ -56,12 +56,18 @@ func testForLoop() {
 	assertEqual(15, sum)
 }
 
+func testSlices() {
+	nums := []int{4, 8, 15, 16, 23, 42}
+	assertEqual(15, nums[2])
+}
+
 func main() {
 	start := time.Now()
 	testMath()
 	testFunctions()
 	testVariables()
 	testForLoop()
+	testSlices()
 	fmt.Println("Pass!")
 	fmt.Println("Took ", time.Since(start))
 }

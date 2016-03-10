@@ -251,8 +251,8 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 		}
 	//case *ast.FuncLit:
 	//	return nil
-	//case *ast.CompositeLit:
-	//	return nil
+	case *ast.CompositeLit:
+		return compileCompositeLit(ctx, expr)
 	//case *ast.ParenExpr:
 	//	return nil
 	case *ast.SelectorExpr:
@@ -269,8 +269,16 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 		}
 		panic(fmt.Sprint("Selector not found ", expr))
 		return nil
-	//case *ast.IndexExpr:
-	//	return nil
+	case *ast.IndexExpr:
+		return &apast.FuncCallExpr{
+			&apast.LiteralExpr{
+				reflect.ValueOf(apruntime.Index),
+			},
+			[]apast.Expr{
+				compileExpr(ctx, expr.X),
+				compileExpr(ctx, expr.Index),
+			},
+		}
 	//case *ast.SliceExpr:
 	//	return nil
 	//case *ast.TypeAssertExpr:
@@ -320,6 +328,36 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	}
 }
 
+func compileCompositeLit(ctx CompileCtx, expr *ast.CompositeLit) apast.Expr {
+	// One reason this is in its own function is that IntelliJ currently
+	// doesn't seem to properly handle nested type switches in the same
+	// function.
+	switch exprType := expr.Type.(type) {
+	case *ast.ArrayType:
+		vals := []apast.Expr{}
+		for _, elt := range expr.Elts {
+			vals = append(vals, compileExpr(ctx, elt))
+		}
+		// All we really need to know is if it's a slice or an array; if
+		// it's an array, we know the length from the number of
+		// elements, so we don't need to store it.
+		if exprType.Len == nil {
+			return &apast.SliceLiteralExpr{
+				compileExpr(ctx, exprType.Elt),
+				vals,
+			}
+		} else {
+			return &apast.ArrayLiteralExpr{
+				compileExpr(ctx, exprType.Elt),
+				vals,
+			}
+		}
+	default:
+		panic(fmt.Sprint("Composite literal not implemented: ", reflect.TypeOf(exprType)))
+		return nil
+	}
+}
+
 // parseLiteral takes a primitive literal and returns it as a value.
 func parseLiteral(val string, kind token.Token) interface{} {
 	switch kind {
@@ -360,6 +398,7 @@ func parseString(codeString string) string {
 }
 
 func getZeroValue(t ast.Expr) interface{} {
+	// TODO: Consider using reflect.New here.
 	if t, ok := t.(*ast.Ident); ok {
 		switch t.Name {
 		case "int":

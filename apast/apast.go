@@ -88,9 +88,21 @@ type LiteralExpr struct {
 	Val reflect.Value
 }
 
+type SliceLiteralExpr struct {
+	Type Expr
+	Vals []Expr
+}
+
+type ArrayLiteralExpr struct {
+	Type Expr
+	Vals []Expr
+}
+
 func (*FuncCallExpr) apexprNode() {}
 func (*IdentExpr) apexprNode() {}
 func (*LiteralExpr) apexprNode() {}
+func (*SliceLiteralExpr) apexprNode() {}
+func (*ArrayLiteralExpr) apexprNode() {}
 
 
 func (e *FuncCallExpr) String() string {
