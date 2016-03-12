@@ -6,7 +6,6 @@
 package apast
 
 import (
-	"reflect"
 	"fmt"
 )
 
@@ -85,7 +84,7 @@ type IdentExpr struct {
 }
 
 type LiteralExpr struct {
-	Val reflect.Value
+	Val interface{}
 }
 
 type SliceLiteralExpr struct {
@@ -112,5 +111,5 @@ func (e *IdentExpr) String() string {
 	return fmt.Sprintf("Ident{%s}", e.Name)
 }
 func (e *LiteralExpr) String() string {
-	return fmt.Sprintf("Literal{%s}", e.Val.Interface())
+	return fmt.Sprintf("Literal{%s}", e.Val)
 }

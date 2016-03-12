@@ -79,30 +79,30 @@ func geq(x interface{}, y interface{}) interface{} {
 }
 
 
-var BinaryOperators = map[token.Token]reflect.Value{
-	token.ADD: reflect.ValueOf(add),
-	token.SUB: reflect.ValueOf(sub),
-	token.MUL: reflect.ValueOf(mul),
-	token.QUO: reflect.ValueOf(quo),
-	token.LSS: reflect.ValueOf(less),
-	token.GTR: reflect.ValueOf(greater),
-	token.LOR: reflect.ValueOf(lor),
-	token.EQL: reflect.ValueOf(equal),
-	token.NEQ: reflect.ValueOf(neq),
-	token.LEQ: reflect.ValueOf(leq),
-	token.GEQ: reflect.ValueOf(geq),
+var BinaryOperators = map[token.Token]interface{}{
+	token.ADD: add,
+	token.SUB: sub,
+	token.MUL: mul,
+	token.QUO: quo,
+	token.LSS: less,
+	token.GTR: greater,
+	token.LOR: lor,
+	token.EQL: equal,
+	token.NEQ: neq,
+	token.LEQ: leq,
+	token.GEQ: geq,
 }
 
-var AssignBinaryOperators = map[token.Token]reflect.Value{
-	token.ADD_ASSIGN: reflect.ValueOf(add),
-	token.SUB_ASSIGN: reflect.ValueOf(sub),
-	token.MUL_ASSIGN: reflect.ValueOf(mul),
-	token.QUO_ASSIGN: reflect.ValueOf(quo),
+var AssignBinaryOperators = map[token.Token]interface{}{
+	token.ADD_ASSIGN: add,
+	token.SUB_ASSIGN: sub,
+	token.MUL_ASSIGN: mul,
+	token.QUO_ASSIGN: quo,
 }
 
-var IncDecOperators = map[token.Token]reflect.Value{
-	token.INC: reflect.ValueOf(add),
-	token.DEC: reflect.ValueOf(sub),
+var IncDecOperators = map[token.Token]interface{}{
+	token.INC: add,
+	token.DEC: sub,
 }
 
 var FmtPackage = &NativePackage{

@@ -61,7 +61,7 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 			for _, spec := range decl.Specs {
 				switch spec := spec.(type) {
 				case *ast.ValueSpec:
-					zeroValue := reflect.ValueOf(getZeroValue(spec.Type))
+					zeroValue := getZeroValue(spec.Type)
 					for _, ident := range spec.Names {
 						varsToInit = append(varsToInit, &apast.IdentExpr{
 							ident.Name,
@@ -107,9 +107,7 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 					},
 					[]apast.Expr{
 						compiledLhs,
-						&apast.LiteralExpr{
-							reflect.ValueOf(1),
-						},
+						&apast.LiteralExpr{1},
 					},
 				},
 			},
@@ -216,9 +214,7 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 		if stmt.Cond != nil {
 			result.Cond = compileExpr(ctx, stmt.Cond)
 		} else {
-			result.Cond = &apast.LiteralExpr{
-				reflect.ValueOf(true),
-			}
+			result.Cond = &apast.LiteralExpr{true}
 		}
 		if stmt.Post != nil {
 			result.Post = CompileStmt(ctx, stmt.Post)
@@ -247,7 +243,7 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	//	return nil
 	case *ast.BasicLit:
 		return &apast.LiteralExpr{
-			reflect.ValueOf(parseLiteral(expr.Value, expr.Kind)),
+			parseLiteral(expr.Value, expr.Kind),
 		}
 	//case *ast.FuncLit:
 	//	return nil
@@ -265,15 +261,13 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 			if funcVal == nil {
 				panic(fmt.Sprint("Unknown function ", expr.Sel.Name))
 			}
-			return &apast.LiteralExpr{reflect.ValueOf(funcVal)}
+			return &apast.LiteralExpr{funcVal}
 		}
 		panic(fmt.Sprint("Selector not found ", expr))
 		return nil
 	case *ast.IndexExpr:
 		return &apast.FuncCallExpr{
-			&apast.LiteralExpr{
-				reflect.ValueOf(apruntime.Index),
-			},
+			&apast.LiteralExpr{apruntime.Index},
 			[]apast.Expr{
 				compileExpr(ctx, expr.X),
 				compileExpr(ctx, expr.Index),

@@ -2,17 +2,16 @@ package apevaluator
 
 import (
 	"github.com/alangpierce/apgo/apast"
-	"reflect"
 )
 
-func panicBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) reflect.Value {
+func panicBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) interface{} {
 	argExpr := funcCall.Args[0]
 	arg := evaluateExpr(ctx, argExpr)
-	panic(arg.Interface())
-	return reflect.ValueOf(nil)
+	panic(arg.get())
+	return nil
 }
 
-type BuiltinFunc func(ctx *Context, funcCall *apast.FuncCallExpr) reflect.Value
+type BuiltinFunc func(ctx *Context, funcCall *apast.FuncCallExpr) interface{}
 
 var builtins map[string]BuiltinFunc
 func init() {
@@ -23,7 +22,7 @@ func init() {
 }
 
 // Builtins skip the normal evaluation step and are handled specially.
-func resolveBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) func() reflect.Value {
+func resolveBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) func() interface{} {
 	switch funcExpr := funcCall.Func.(type) {
 	case *apast.IdentExpr:
 		if ctx.isNameValid(funcExpr.Name) {
@@ -36,7 +35,7 @@ func resolveBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) func() reflect.V
 		}
 		builtin := builtins[funcExpr.Name]
 		if builtin != nil {
-			return func() reflect.Value {
+			return func() interface{} {
 				return builtin(ctx, funcCall)
 			}
 		}

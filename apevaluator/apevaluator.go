@@ -6,10 +6,10 @@ import (
 	"fmt"
 )
 
-func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []reflect.Value {
+func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []interface{} {
 	ctx := NewContext(pack)
 	for i, argName := range funcAst.ParamNames {
-		ctx.assignValue(argName, reflect.ValueOf(args[i]))
+		ctx.assignValue(argName, args[i])
 	}
 	EvaluateStmt(ctx, funcAst.Body)
 	return ctx.returnValues
@@ -32,14 +32,14 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 		if len(stmt.Lhs) != len(stmt.Rhs) {
 			panic("Multiple assign with differing lengths not implemented.")
 		}
-		values := []reflect.Value{}
+		values := []ExprResult{}
 		for _, rhsExpr := range stmt.Rhs {
 			values = append(values, evaluateExpr(ctx, rhsExpr))
 		}
 		for i, value := range values {
 			lvalue := stmt.Lhs[i]
 			if lvalue, ok := lvalue.(*apast.IdentExpr); ok {
-				ctx.assignValue(lvalue.Name, value)
+				ctx.assignValue(lvalue.Name, value.get())
 			} else {
 				panic("Only assignment to identifiers supported for now.")
 			}
@@ -50,7 +50,7 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 		// TODO: Handle scopes properly, if necessary.
 		EvaluateStmt(ctx, stmt.Init)
 		condValue := evaluateExpr(ctx, stmt.Cond)
-		if condValue.Interface().(bool) {
+		if condValue.get().(bool) {
 			EvaluateStmt(ctx, stmt.Body)
 		} else {
 			EvaluateStmt(ctx, stmt.Else)
@@ -60,7 +60,7 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 		EvaluateStmt(ctx, stmt.Init)
 		for {
 			condValue := evaluateExpr(ctx, stmt.Cond)
-			if !condValue.Interface().(bool) {
+			if !condValue.get().(bool) {
 				break
 			}
 			EvaluateStmt(ctx, stmt.Body)
@@ -73,9 +73,9 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 	case *apast.BreakStmt:
 		ctx.shouldBreak = true
 	case *apast.ReturnStmt:
-		returnValues := []reflect.Value{}
+		returnValues := []interface{}{}
 		for _, result := range stmt.Results {
-			returnValues = append(returnValues, evaluateExpr(ctx, result))
+			returnValues = append(returnValues, evaluateExpr(ctx, result).get())
 		}
 		ctx.returnValues = returnValues
 	default:
@@ -84,33 +84,42 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 }
 
 
-func evaluateExpr(ctx *Context, expr apast.Expr) reflect.Value {
+func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 	switch expr := expr.(type) {
 	case *apast.FuncCallExpr:
 		maybeBuiltin := resolveBuiltin(ctx, expr)
 		if (maybeBuiltin != nil) {
-			return maybeBuiltin()
+			return &RValue{
+				maybeBuiltin(),
+			}
 		}
 
-		funcValue := evaluateExpr(ctx, expr.Func)
-		argValues := []reflect.Value{}
+		f := evaluateExpr(ctx, expr.Func).get()
+		args := []interface{}{}
 		for _, argExpr := range expr.Args {
-			argValues = append(argValues, evaluateExpr(ctx, argExpr))
+			args = append(args, evaluateExpr(ctx, argExpr).get())
 		}
 		// TODO: Handle multiple return values.
-		return funcValue.Call(argValues)[0]
+		result := callFunc(f, args)[0]
+		return &RValue{
+			result,
+		}
 	case *apast.IdentExpr:
 		return ctx.resolveValue(expr.Name)
 	case *apast.LiteralExpr:
-		return expr.Val
+		return &RValue{
+			expr.Val,
+		}
 	case *apast.SliceLiteralExpr:
 		typ := evaluateType(expr.Type)
 		result := reflect.MakeSlice(
 			reflect.SliceOf(typ), len(expr.Vals), len(expr.Vals))
 		for i, val := range expr.Vals {
-			result.Index(i).Set(evaluateExpr(ctx, val))
+			result.Index(i).Set(reflect.ValueOf(evaluateExpr(ctx, val).get()))
 		}
-		return result
+		return &RValue{
+			result.Interface(),
+		}
 	default:
 		panic(fmt.Sprint("Expression eval not implemented: ", reflect.TypeOf(expr)))
 	}
@@ -127,4 +136,18 @@ func evaluateType(expr apast.Expr) reflect.Type {
 	default:
 		panic(fmt.Sprint("Type expression not implemented: ", reflect.TypeOf(expr)))
 	}
+}
+
+
+func callFunc(f interface{}, args []interface{}) []interface{} {
+	argVals := []reflect.Value{}
+	for _, arg := range args {
+		argVals = append(argVals, reflect.ValueOf(arg))
+	}
+	resultVals := reflect.ValueOf(f).Call(argVals)
+	results := []interface{}{}
+	for _, resultVal := range resultVals {
+		results = append(results, resultVal.Interface())
+	}
+	return results
 }
