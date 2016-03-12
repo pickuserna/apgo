@@ -4,6 +4,7 @@ import (
 	"github.com/alangpierce/apgo/apast"
 	"reflect"
 	"fmt"
+	"github.com/alangpierce/apgo/apruntime"
 )
 
 func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []interface{} {
@@ -109,6 +110,16 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		return &ReflectValLValue{
 			reflect.ValueOf(arrOrSlice).Index(index.(int)),
 		}
+	case *apast.FieldAccessExpr:
+		leftSide := evaluateExpr(ctx, expr.E)
+		if istruct, ok := leftSide.get().(*apruntime.InterpretedStruct); ok {
+			return &InterpretedStructLValue{
+				istruct,
+				expr.Name,
+			}
+		} else {
+			panic("Unsupported field access.")
+		}
 	case *apast.LiteralExpr:
 		return &RValue{
 			expr.Val,
@@ -122,6 +133,12 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		}
 		return &RValue{
 			result.Interface(),
+		}
+	case *apast.StructLiteralExpr:
+		return &RValue{
+			&apruntime.InterpretedStruct{
+				make(map[string]interface{}),
+			},
 		}
 	default:
 		panic(fmt.Sprint("Expression eval not implemented: ", reflect.TypeOf(expr)))

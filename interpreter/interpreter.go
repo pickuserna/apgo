@@ -29,8 +29,9 @@ func (interpreter *Interpreter) LoadPackage(dirPath string) error {
 	if err != nil {
 		return err
 	}
-	compileCtx := apcompiler.CompileCtx{
+	compileCtx := &apcompiler.CompileCtx{
 		interpreter.nativePackages,
+		make(map[string]bool),
 	}
 	for name, packageAst := range packageAsts{
 		interpreter.packages[name] = apcompiler.CompilePackage(compileCtx, packageAst)

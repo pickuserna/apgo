@@ -63,6 +63,16 @@ func testSlices() {
 	assertEqual(5, nums[3])
 }
 
+type SampleStruct struct {
+	x int
+}
+
+func testStruct() {
+	sample := SampleStruct{}
+	sample.x = 3
+	assertEqual(3, sample.x)
+}
+
 func main() {
 	start := time.Now()
 	testMath()
@@ -70,6 +80,7 @@ func main() {
 	testVariables()
 	testForLoop()
 	testSlices()
+	testStruct()
 	fmt.Println("Pass!")
 	fmt.Println("Took ", time.Since(start))
 }

@@ -3,6 +3,7 @@ package apevaluator
 import (
 	"reflect"
 	"fmt"
+	"github.com/alangpierce/apgo/apruntime"
 )
 
 // ExprResult is what you get when evaluating an expression. It is a little more
@@ -48,4 +49,17 @@ func (lv *ReflectValLValue) get() interface{} {
 
 func (lv *ReflectValLValue) set(val interface{}) {
 	lv.val.Set(reflect.ValueOf(val))
+}
+
+type InterpretedStructLValue struct {
+	istruct *apruntime.InterpretedStruct
+	name string
+}
+
+func (lv *InterpretedStructLValue) get() interface{} {
+	return lv.istruct.Values[lv.name]
+}
+
+func (lv *InterpretedStructLValue) set(val interface{}) {
+	lv.istruct.Values[lv.name] = val
 }

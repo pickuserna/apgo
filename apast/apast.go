@@ -92,6 +92,11 @@ type IndexExpr struct {
 	Index Expr
 }
 
+type FieldAccessExpr struct {
+	E Expr
+	Name string
+}
+
 type SliceLiteralExpr struct {
 	Type Expr
 	Vals []Expr
@@ -102,12 +107,17 @@ type ArrayLiteralExpr struct {
 	Vals []Expr
 }
 
+type StructLiteralExpr struct {
+}
+
 func (*FuncCallExpr) apexprNode() {}
 func (*IdentExpr) apexprNode() {}
 func (*LiteralExpr) apexprNode() {}
 func (*IndexExpr) apexprNode() {}
+func (*FieldAccessExpr) apexprNode() {}
 func (*SliceLiteralExpr) apexprNode() {}
 func (*ArrayLiteralExpr) apexprNode() {}
+func (*StructLiteralExpr) apexprNode() {}
 
 func (e *FuncCallExpr) String() string {
 	return fmt.Sprintf("FuncCall{%s,%s}", e.Func, e.Args)

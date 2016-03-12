@@ -13,9 +13,10 @@ import (
 
 type CompileCtx struct {
 	NativePackages map[string]*apruntime.NativePackage
+	ActiveVars map[string]bool
 }
 
-func CompilePackage(ctx CompileCtx, pack *ast.Package) *apast.Package {
+func CompilePackage(ctx *CompileCtx, pack *ast.Package) *apast.Package {
 	funcs := make(map[string]*apast.FuncDecl)
 	for _, file := range pack.Files {
 		for _, decl := range file.Decls {
@@ -30,7 +31,10 @@ func CompilePackage(ctx CompileCtx, pack *ast.Package) *apast.Package {
 	}
 }
 
-func CompileFuncDecl(ctx CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
+func CompileFuncDecl(ctx *CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
+	// Clear the list of variables since it might be left over from the
+	// previous function compilation.
+	ctx.ActiveVars = make(map[string]bool)
 	paramNames := []string{}
 	for _, param := range funcDecl.Type.Params.List {
 		if param.Names == nil {
@@ -47,7 +51,7 @@ func CompileFuncDecl(ctx CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
 	}
 }
 
-func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
+func CompileStmt(ctx *CompileCtx, stmt ast.Stmt) apast.Stmt {
 	switch stmt := stmt.(type) {
 	//case *ast.BadStmt:
 	//	return nil
@@ -63,6 +67,7 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 				case *ast.ValueSpec:
 					zeroValue := getZeroValue(spec.Type)
 					for _, ident := range spec.Names {
+						ctx.ActiveVars[ident.Name] = true
 						varsToInit = append(varsToInit, &apast.IdentExpr{
 							ident.Name,
 						})
@@ -117,6 +122,13 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 			lhs := []apast.Expr{}
 			rhs := []apast.Expr{}
 			for _, lhsExpr := range stmt.Lhs {
+				// Note that this is a bit overkill because
+				// we're counting assignments or definitions as
+				// creating variables, but that should still be
+				// correct.
+				if lhsExpr, ok := lhsExpr.(*ast.Ident); ok {
+					ctx.ActiveVars[lhsExpr.Name] = true
+				}
 				lhs = append(lhs, compileExpr(ctx, lhsExpr))
 			}
 			for _, rhsExpr := range stmt.Rhs {
@@ -231,7 +243,7 @@ func CompileStmt(ctx CompileCtx, stmt ast.Stmt) apast.Stmt {
 	}
 }
 
-func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
+func compileExpr(ctx *CompileCtx, expr ast.Expr) apast.Expr {
 	switch expr := expr.(type) {
 	//case *ast.BadExpr:
 	//	return nil
@@ -253,18 +265,17 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	//	return nil
 	case *ast.SelectorExpr:
 		if leftSide, ok := expr.X.(*ast.Ident); ok {
-			nativePackage := ctx.NativePackages[leftSide.Name]
-			if nativePackage == nil {
-				panic(fmt.Sprint("Unknown package ", leftSide.Name))
+			if _, ok := ctx.ActiveVars[leftSide.Name]; ok {
+				return &apast.FieldAccessExpr{
+					compileExpr(ctx, leftSide),
+					expr.Sel.Name,
+				}
+			} else {
+				return compilePackageFunc(ctx, leftSide, expr.Sel)
 			}
-			funcVal := nativePackage.Funcs[expr.Sel.Name]
-			if funcVal == nil {
-				panic(fmt.Sprint("Unknown function ", expr.Sel.Name))
-			}
-			return &apast.LiteralExpr{funcVal}
+		} else {
+			panic(fmt.Sprint("Selector not found ", expr))
 		}
-		panic(fmt.Sprint("Selector not found ", expr))
-		return nil
 	case *ast.IndexExpr:
 		return &apast.IndexExpr{
 			compileExpr(ctx, expr.X),
@@ -319,7 +330,19 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 	}
 }
 
-func compileCompositeLit(ctx CompileCtx, expr *ast.CompositeLit) apast.Expr {
+func compilePackageFunc(ctx *CompileCtx, leftSide *ast.Ident, sel *ast.Ident) apast.Expr {
+	nativePackage := ctx.NativePackages[leftSide.Name]
+	if nativePackage == nil {
+		panic(fmt.Sprint("Unknown package ", leftSide.Name))
+	}
+	funcVal := nativePackage.Funcs[sel.Name]
+	if funcVal == nil {
+		panic(fmt.Sprint("Unknown function ", sel.Name))
+	}
+	return &apast.LiteralExpr{funcVal}
+}
+
+func compileCompositeLit(ctx *CompileCtx, expr *ast.CompositeLit) apast.Expr {
 	// One reason this is in its own function is that IntelliJ currently
 	// doesn't seem to properly handle nested type switches in the same
 	// function.
@@ -342,6 +365,9 @@ func compileCompositeLit(ctx CompileCtx, expr *ast.CompositeLit) apast.Expr {
 				compileExpr(ctx, exprType.Elt),
 				vals,
 			}
+		}
+	case *ast.Ident:
+		return &apast.StructLiteralExpr{
 		}
 	default:
 		panic(fmt.Sprint("Composite literal not implemented: ", reflect.TypeOf(exprType)))
