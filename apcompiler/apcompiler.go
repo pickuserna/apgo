@@ -266,12 +266,9 @@ func compileExpr(ctx CompileCtx, expr ast.Expr) apast.Expr {
 		panic(fmt.Sprint("Selector not found ", expr))
 		return nil
 	case *ast.IndexExpr:
-		return &apast.FuncCallExpr{
-			&apast.LiteralExpr{apruntime.Index},
-			[]apast.Expr{
-				compileExpr(ctx, expr.X),
-				compileExpr(ctx, expr.Index),
-			},
+		return &apast.IndexExpr{
+			compileExpr(ctx, expr.X),
+			compileExpr(ctx, expr.Index),
 		}
 	//case *ast.SliceExpr:
 	//	return nil

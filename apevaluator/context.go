@@ -3,6 +3,7 @@ package apevaluator
 import (
 	"github.com/alangpierce/apgo/apast"
 	"fmt"
+	"reflect"
 )
 
 type Context struct {
@@ -22,6 +23,7 @@ type Context struct {
 // and/or have a pointer associated with it.
 type ExprResult interface {
 	get() interface{}
+	set(val interface{})
 }
 
 type RValue struct {
@@ -30,6 +32,35 @@ type RValue struct {
 
 func (rv *RValue) get() interface{} {
 	return rv.val
+}
+
+func (rv *RValue) set(val interface{}) {
+	panic(fmt.Sprint("Called set on RValue ", rv.val))
+}
+
+type VariableLValue struct {
+	varMap map[string]interface{}
+	name string
+}
+
+func (lv *VariableLValue) get() interface{} {
+	return lv.varMap[lv.name]
+}
+
+func (lv *VariableLValue) set(val interface{}) {
+	lv.varMap[lv.name] = val
+}
+
+type ReflectValLValue struct {
+	val reflect.Value
+}
+
+func (lv *ReflectValLValue) get() interface{} {
+	return lv.val.Interface()
+}
+
+func (lv *ReflectValLValue) set(val interface{}) {
+	lv.val.Set(reflect.ValueOf(val))
 }
 
 func NewContext(pack *apast.Package) *Context {
@@ -55,16 +86,25 @@ func NewContext(pack *apast.Package) *Context {
 }
 
 func (ctx *Context) resolveValue(name string) ExprResult {
-	if local, ok := ctx.Locals[name]; ok {
-		return &RValue{
-			local,
+	if _, ok := ctx.Locals[name]; ok {
+		return &VariableLValue{
+			ctx.Locals,
+			name,
 		}
-	} else if packageVal, ok := ctx.PackageValues[name]; ok {
-		return &RValue{
-			packageVal,
+	} else if _, ok := ctx.PackageValues[name]; ok {
+		return &VariableLValue{
+			ctx.PackageValues,
+			name,
 		}
 	} else {
-		panic(fmt.Sprint("Variable not found: ", name))
+		// If we didn't find anything, then create it as a local
+		// variable.
+		// TODO: Maybe we need to init to a zero value?
+		ctx.Locals[name] = nil
+		return &VariableLValue{
+			ctx.Locals,
+			name,
+		}
 	}
 }
 

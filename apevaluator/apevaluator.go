@@ -37,12 +37,8 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 			values = append(values, evaluateExpr(ctx, rhsExpr))
 		}
 		for i, value := range values {
-			lvalue := stmt.Lhs[i]
-			if lvalue, ok := lvalue.(*apast.IdentExpr); ok {
-				ctx.assignValue(lvalue.Name, value.get())
-			} else {
-				panic("Only assignment to identifiers supported for now.")
-			}
+			lvalue := evaluateExpr(ctx, stmt.Lhs[i])
+			lvalue.set(value.get())
 		}
 	case *apast.EmptyStmt:
 		// Do nothing.
@@ -106,6 +102,13 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		}
 	case *apast.IdentExpr:
 		return ctx.resolveValue(expr.Name)
+	case *apast.IndexExpr:
+		// TODO: Handle maps.
+		arrOrSlice := evaluateExpr(ctx, expr.E).get()
+		index := evaluateExpr(ctx, expr.Index).get()
+		return &ReflectValLValue{
+			reflect.ValueOf(arrOrSlice).Index(index.(int)),
+		}
 	case *apast.LiteralExpr:
 		return &RValue{
 			expr.Val,

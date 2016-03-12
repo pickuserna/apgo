@@ -59,6 +59,8 @@ func testForLoop() {
 func testSlices() {
 	nums := []int{4, 8, 15, 16, 23, 42}
 	assertEqual(15, nums[2])
+	nums[3] = 5
+	assertEqual(5, nums[3])
 }
 
 func main() {

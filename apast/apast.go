@@ -87,6 +87,11 @@ type LiteralExpr struct {
 	Val interface{}
 }
 
+type IndexExpr struct {
+	E Expr
+	Index Expr
+}
+
 type SliceLiteralExpr struct {
 	Type Expr
 	Vals []Expr
@@ -100,9 +105,9 @@ type ArrayLiteralExpr struct {
 func (*FuncCallExpr) apexprNode() {}
 func (*IdentExpr) apexprNode() {}
 func (*LiteralExpr) apexprNode() {}
+func (*IndexExpr) apexprNode() {}
 func (*SliceLiteralExpr) apexprNode() {}
 func (*ArrayLiteralExpr) apexprNode() {}
-
 
 func (e *FuncCallExpr) String() string {
 	return fmt.Sprintf("FuncCall{%s,%s}", e.Func, e.Args)
