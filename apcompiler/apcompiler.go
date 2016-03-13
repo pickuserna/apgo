@@ -30,16 +30,29 @@ func CompilePackage(ctx *CompileCtx, pack *ast.Package) *apast.Package {
 	}
 
 	funcs := make(map[string]*apast.FuncDecl)
+	types := make(map[string]*apast.TypeDecl)
 	for _, file := range pack.Files {
 		for _, decl := range file.Decls {
 			switch decl := decl.(type) {
 			case *ast.FuncDecl:
-				funcs[decl.Name.Name] = compileFuncDecl(ctx, decl)
+				if decl.Recv == nil {
+					funcs[decl.Name.Name] = compileFuncDecl(ctx, decl)
+				} else {
+					// TODO: Validate these assumptions.
+					typeName := decl.Recv.List[0].Names[0].Name
+					if _, ok := types[typeName]; !ok {
+						types[typeName] = &apast.TypeDecl{
+							make(map[string]*apast.MethodDecl),
+						}
+					}
+					types[typeName].Methods[decl.Name.Name] = compileMethodDecl(ctx, decl)
+				}
 			}
 		}
 	}
 	return &apast.Package{
 		funcs,
+		types,
 	}
 }
 
@@ -58,6 +71,24 @@ func compileFuncDecl(ctx *CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
 	// Clear the list of variables since it might be left over from the
 	// previous function compilation.
 	ctx.ActiveVars = make(map[string]bool)
+
+	// Populate all initial variables (receiver, args, outputs).
+	if funcDecl.Recv != nil {
+		ctx.ActiveVars[funcDecl.Recv.List[0].Names[0].Name] = true
+	}
+	for _, field := range funcDecl.Type.Params.List {
+		for _, name := range field.Names {
+			ctx.ActiveVars[name.Name] = true
+		}
+	}
+	if funcDecl.Type.Results != nil {
+		for _, field := range funcDecl.Type.Results.List {
+			for _, name := range field.Names {
+				ctx.ActiveVars[name.Name] = true
+			}
+		}
+	}
+
 	paramNames := []string{}
 	for _, param := range funcDecl.Type.Params.List {
 		if param.Names == nil {
@@ -71,6 +102,13 @@ func compileFuncDecl(ctx *CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
 	return &apast.FuncDecl{
 		CompileStmt(ctx, funcDecl.Body),
 		paramNames,
+	}
+}
+
+func compileMethodDecl(ctx *CompileCtx, methodDecl *ast.FuncDecl) *apast.MethodDecl {
+	return &apast.MethodDecl{
+		ReceiverName: methodDecl.Recv.List[0].Names[0].Name,
+		Func: compileFuncDecl(ctx, methodDecl),
 	}
 }
 
@@ -390,7 +428,7 @@ func compileCompositeLit(ctx *CompileCtx, expr *ast.CompositeLit) apast.Expr {
 	case *ast.Ident:
 		// Struct creation.
 		if structDef, ok := ctx.StructDefs[exprType.Name]; ok {
-			return compileStructLiteral(ctx, structDef, expr)
+			return compileStructLiteral(ctx, exprType.Name, structDef, expr)
 		} else {
 			panic(fmt.Sprint("Unknown struct ", exprType.Name))
 		}
@@ -400,10 +438,12 @@ func compileCompositeLit(ctx *CompileCtx, expr *ast.CompositeLit) apast.Expr {
 	}
 }
 
-func compileStructLiteral(ctx *CompileCtx, structDef *ast.StructType, expr *ast.CompositeLit) apast.Expr {
+func compileStructLiteral(
+		ctx *CompileCtx, structName string, structDef *ast.StructType,
+		expr *ast.CompositeLit) apast.Expr {
 	// Start out all fields with the zero value, then later replace any that
 	// are specified explicitly.
-	literalExpr, fieldNames := getStructZeroValueExpr(ctx, structDef)
+	literalExpr, fieldNames := getStructZeroValueExpr(ctx, structName, structDef)
 	for i, elt := range expr.Elts {
 		if kvElt, ok := elt.(*ast.KeyValueExpr); ok {
 			if keyIdent, ok := kvElt.Key.(*ast.Ident); ok {
@@ -466,7 +506,7 @@ func getZeroValueExpr(ctx *CompileCtx, t ast.Expr) apast.Expr {
 			return &apast.LiteralExpr{0}
 		}
 		if structDef, ok := ctx.StructDefs[t.Name]; ok {
-			result, _ := getStructZeroValueExpr(ctx, structDef)
+			result, _ := getStructZeroValueExpr(ctx, t.Name, structDef)
 			return result
 		} else {
 			panic(fmt.Sprint("Unexpected type identifier: ", t.Name))
@@ -479,7 +519,9 @@ func getZeroValueExpr(ctx *CompileCtx, t ast.Expr) apast.Expr {
 // Returns an initialization expression for the struct and a list of the fields
 // in the struct (for convenience, since some callers want to refer to field
 // names by index).
-func getStructZeroValueExpr(ctx *CompileCtx, structDef *ast.StructType) (*apast.StructLiteralExpr, []string) {
+func getStructZeroValueExpr(ctx *CompileCtx, structName string,
+		structDef *ast.StructType) (
+		*apast.StructLiteralExpr, []string) {
 	fields := structDef.Fields.List
 	initialValues := make(map[string]apast.Expr)
 	fieldNames := make([]string, len(fields), len(fields))
@@ -494,5 +536,8 @@ func getStructZeroValueExpr(ctx *CompileCtx, structDef *ast.StructType) (*apast.
 		fieldNames[i] = fieldName
 		initialValues[fieldName] = getZeroValueExpr(ctx, field.Type)
 	}
-	return &apast.StructLiteralExpr{initialValues}, fieldNames
+	return &apast.StructLiteralExpr{
+		structName,
+		initialValues,
+	}, fieldNames
 }

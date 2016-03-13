@@ -11,6 +11,18 @@ import (
 
 type Package struct {
 	Funcs map[string]*FuncDecl
+	// All methods are attached to their corresponding types.
+	Types map[string]*TypeDecl
+}
+
+type TypeDecl struct {
+	Methods map[string]*MethodDecl
+}
+
+type MethodDecl struct {
+	// TODO: Handle pointers and non-pointers.
+	ReceiverName string
+	Func *FuncDecl
 }
 
 type FuncDecl struct {
@@ -108,6 +120,7 @@ type ArrayLiteralExpr struct {
 }
 
 type StructLiteralExpr struct {
+	TypeName string
 	InitialValues map[string]Expr
 }
 
