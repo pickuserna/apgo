@@ -30,8 +30,13 @@ func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interfac
 
 // Create an intermediate method function for the given method and receiver.
 func createMethodValue(pack *apast.Package, method *apast.MethodDecl, receiver interface{}) interface{} {
+	r := receiver.(*apruntime.InterpretedStruct)
+	// Do a copy if we're using pass-by-value.
+	if !method.IsPointer {
+		r = r.Copy()
+	}
 	return func(args ...interface{}) interface{} {
-		result := evaluateMethod(pack, method, receiver, args)
+		result := evaluateMethod(pack, method, r, args)
 		if result == nil {
 			return nil
 		} else {

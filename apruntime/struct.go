@@ -7,3 +7,14 @@ type InterpretedStruct struct {
 	TypeName string
 	Values map[string]interface{}
 }
+
+func (is *InterpretedStruct) Copy() *InterpretedStruct {
+	newValues := make(map[string]interface{})
+	for key, value := range is.Values {
+		newValues[key] = value
+	}
+	return &InterpretedStruct{
+		is.TypeName,
+		newValues,
+	}
+}

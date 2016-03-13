@@ -92,9 +92,31 @@ func (s *StructWithMethods) getValPlusOne() int {
 	return s.val + 1
 }
 
+// This method passes the receiver by value, so we end up modifying the copy,
+// which doesn't do anything.
+func (s StructWithMethods) incorrectlySetValToOne() {
+	s.val = 1
+}
+
+func (s *StructWithMethods) correctlySetValToOne() {
+	s.val = 1
+}
+
+func (s StructWithMethods) getVal() int {
+	return s.val
+}
+
 func testMethods() {
 	sample := StructWithMethods{3}
+	getFn := sample.getVal
 	assertEqual(4, sample.getValPlusOne())
+	sample.incorrectlySetValToOne()
+	assertEqual(3, sample.val)
+	sample.correctlySetValToOne()
+	assertEqual(1, sample.val)
+	// The pass-by-value happens eagerly when getFn is created, not when it
+	// is called.
+	assertEqual(3, getFn())
 }
 
 func main() {
