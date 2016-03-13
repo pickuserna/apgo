@@ -135,10 +135,16 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 			result.Interface(),
 		}
 	case *apast.StructLiteralExpr:
+		structVal := &apruntime.InterpretedStruct{
+			make(map[string]interface{}),
+		}
+		// Populate the initial values, which should include setting
+		// fields to their proper zeros.
+		for key, valueExpr := range expr.InitialValues {
+			structVal.Values[key] = evaluateExpr(ctx, valueExpr).get()
+		}
 		return &RValue{
-			&apruntime.InterpretedStruct{
-				make(map[string]interface{}),
-			},
+			structVal,
 		}
 	default:
 		panic(fmt.Sprint("Expression eval not implemented: ", reflect.TypeOf(expr)))

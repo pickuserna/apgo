@@ -69,8 +69,19 @@ type SampleStruct struct {
 
 func testStruct() {
 	sample := SampleStruct{}
+	assertEqual(0, sample.x)
 	sample.x = 3
 	assertEqual(3, sample.x)
+	var sample2 SampleStruct
+	assertEqual(0, sample2.x)
+	sample3 := SampleStruct{
+		7,
+	}
+	assertEqual(7, sample3.x)
+	sample4 := SampleStruct{
+		x: 12,
+	}
+	assertEqual(12, sample4.x)
 }
 
 func main() {

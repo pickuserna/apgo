@@ -8,6 +8,7 @@ import (
 	"github.com/alangpierce/apgo/apruntime"
 	"github.com/alangpierce/apgo/apast"
 	"github.com/alangpierce/apgo/apcompiler"
+	"go/ast"
 )
 
 type Interpreter struct {
@@ -32,6 +33,7 @@ func (interpreter *Interpreter) LoadPackage(dirPath string) error {
 	compileCtx := &apcompiler.CompileCtx{
 		interpreter.nativePackages,
 		make(map[string]bool),
+		make(map[string]*ast.StructType),
 	}
 	for name, packageAst := range packageAsts{
 		interpreter.packages[name] = apcompiler.CompilePackage(compileCtx, packageAst)

@@ -108,6 +108,7 @@ type ArrayLiteralExpr struct {
 }
 
 type StructLiteralExpr struct {
+	InitialValues map[string]Expr
 }
 
 func (*FuncCallExpr) apexprNode() {}

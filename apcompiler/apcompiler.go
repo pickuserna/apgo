@@ -14,15 +14,27 @@ import (
 type CompileCtx struct {
 	NativePackages map[string]*apruntime.NativePackage
 	ActiveVars map[string]bool
+	StructDefs map[string]*ast.StructType
 }
 
 func CompilePackage(ctx *CompileCtx, pack *ast.Package) *apast.Package {
+	// Compile and populate structs.
+	for _, file := range pack.Files {
+		for _, decl := range file.Decls {
+			if decl, ok := decl.(*ast.GenDecl); ok {
+				for _, spec := range decl.Specs {
+					compileGenDecl(ctx, spec)
+				}
+			}
+		}
+	}
+
 	funcs := make(map[string]*apast.FuncDecl)
 	for _, file := range pack.Files {
 		for _, decl := range file.Decls {
 			switch decl := decl.(type) {
 			case *ast.FuncDecl:
-				funcs[decl.Name.Name] = CompileFuncDecl(ctx, decl)
+				funcs[decl.Name.Name] = compileFuncDecl(ctx, decl)
 			}
 		}
 	}
@@ -31,7 +43,18 @@ func CompilePackage(ctx *CompileCtx, pack *ast.Package) *apast.Package {
 	}
 }
 
-func CompileFuncDecl(ctx *CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
+// For now, this just populates the compile context with the given declaration,
+// if necessary.
+func compileGenDecl(ctx *CompileCtx, spec ast.Spec) {
+	switch spec := spec.(type) {
+	case *ast.TypeSpec:
+		if structType, ok := spec.Type.(*ast.StructType); ok {
+			ctx.StructDefs[spec.Name.Name] = structType
+		}
+	}
+}
+
+func compileFuncDecl(ctx *CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
 	// Clear the list of variables since it might be left over from the
 	// previous function compilation.
 	ctx.ActiveVars = make(map[string]bool)
@@ -65,15 +88,13 @@ func CompileStmt(ctx *CompileCtx, stmt ast.Stmt) apast.Stmt {
 			for _, spec := range decl.Specs {
 				switch spec := spec.(type) {
 				case *ast.ValueSpec:
-					zeroValue := getZeroValue(spec.Type)
+					zeroValueExpr := getZeroValueExpr(ctx, spec.Type)
 					for _, ident := range spec.Names {
 						ctx.ActiveVars[ident.Name] = true
 						varsToInit = append(varsToInit, &apast.IdentExpr{
 							ident.Name,
 						})
-						zeroTerms = append(zeroTerms, &apast.LiteralExpr{
-							zeroValue,
-						})
+						zeroTerms = append(zeroTerms, zeroValueExpr)
 					}
 				default:
 					panic("Unexpected spec")
@@ -367,12 +388,35 @@ func compileCompositeLit(ctx *CompileCtx, expr *ast.CompositeLit) apast.Expr {
 			}
 		}
 	case *ast.Ident:
-		return &apast.StructLiteralExpr{
+		// Struct creation.
+		if structDef, ok := ctx.StructDefs[exprType.Name]; ok {
+			return compileStructLiteral(ctx, structDef, expr)
+		} else {
+			panic(fmt.Sprint("Unknown struct ", exprType.Name))
 		}
 	default:
 		panic(fmt.Sprint("Composite literal not implemented: ", reflect.TypeOf(exprType)))
 		return nil
 	}
+}
+
+func compileStructLiteral(ctx *CompileCtx, structDef *ast.StructType, expr *ast.CompositeLit) apast.Expr {
+	// Start out all fields with the zero value, then later replace any that
+	// are specified explicitly.
+	literalExpr, fieldNames := getStructZeroValueExpr(ctx, structDef)
+	for i, elt := range expr.Elts {
+		if kvElt, ok := elt.(*ast.KeyValueExpr); ok {
+			if keyIdent, ok := kvElt.Key.(*ast.Ident); ok {
+				literalExpr.InitialValues[keyIdent.Name] = compileExpr(ctx, kvElt.Value)
+			} else {
+				panic("Expected identifier as struct literal key.")
+			}
+		} else {
+			literalExpr.InitialValues[fieldNames[i]] = compileExpr(ctx, elt)
+		}
+	}
+
+	return literalExpr
 }
 
 // parseLiteral takes a primitive literal and returns it as a value.
@@ -414,16 +458,41 @@ func parseString(codeString string) string {
 	return strings.Replace(strWithoutQuotes, "\\n", "\n", -1)
 }
 
-func getZeroValue(t ast.Expr) interface{} {
+func getZeroValueExpr(ctx *CompileCtx, t ast.Expr) apast.Expr {
 	// TODO: Consider using reflect.New here.
 	if t, ok := t.(*ast.Ident); ok {
 		switch t.Name {
 		case "int":
-			return 0
-		default:
-			panic("Zero for type not implemented")
+			return &apast.LiteralExpr{0}
+		}
+		if structDef, ok := ctx.StructDefs[t.Name]; ok {
+			result, _ := getStructZeroValueExpr(ctx, structDef)
+			return result
+		} else {
+			panic(fmt.Sprint("Unexpected type identifier: ", t.Name))
 		}
 	} else {
 		panic("Zero for non-identifier types not implemented")
 	}
+}
+
+// Returns an initialization expression for the struct and a list of the fields
+// in the struct (for convenience, since some callers want to refer to field
+// names by index).
+func getStructZeroValueExpr(ctx *CompileCtx, structDef *ast.StructType) (*apast.StructLiteralExpr, []string) {
+	fields := structDef.Fields.List
+	initialValues := make(map[string]apast.Expr)
+	fieldNames := make([]string, len(fields), len(fields))
+
+	// Start out all fields with the zero value, then later replace any that
+	// are specified explicitly.
+	for i, field := range fields {
+		if len(field.Names) != 1 {
+			panic("Expected exactly one field name in struct def.")
+		}
+		fieldName := field.Names[0].Name
+		fieldNames[i] = fieldName
+		initialValues[fieldName] = getZeroValueExpr(ctx, field.Type)
+	}
+	return &apast.StructLiteralExpr{initialValues}, fieldNames
 }
