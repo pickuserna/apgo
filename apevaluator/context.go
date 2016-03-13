@@ -16,6 +16,10 @@ type Context struct {
 	shouldBreak bool
 }
 
+type MethodSet struct {
+	Methods map[string]*apast.MethodDecl
+}
+
 func NewContext(pack *apast.Package) *Context {
 	return &Context{
 		Locals: make(map[string]interface{}),

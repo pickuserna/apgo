@@ -84,6 +84,19 @@ func testStruct() {
 	assertEqual(12, sample4.x)
 }
 
+type StructWithMethods struct {
+	val int
+}
+
+func (s *StructWithMethods) getValPlusOne() int {
+	return s.val + 1
+}
+
+func testMethods() {
+	sample := StructWithMethods{3}
+	assertEqual(4, sample.getValPlusOne())
+}
+
 func main() {
 	start := time.Now()
 	testMath()
@@ -92,6 +105,7 @@ func main() {
 	testForLoop()
 	testSlices()
 	testStruct()
+	testMethods()
 	fmt.Println("Pass!")
 	fmt.Println("Took ", time.Since(start))
 }

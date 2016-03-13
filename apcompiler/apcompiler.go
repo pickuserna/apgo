@@ -29,6 +29,9 @@ func CompilePackage(ctx *CompileCtx, pack *ast.Package) *apast.Package {
 		}
 	}
 
+	// TODO: This code is slightly weird in that it doesn't populate types
+	// with zero methods. For now that shouldn't matter, but it may be good
+	// to make more consistent at some point.
 	funcs := make(map[string]*apast.FuncDecl)
 	types := make(map[string]*apast.TypeDecl)
 	for _, file := range pack.Files {
@@ -38,14 +41,13 @@ func CompilePackage(ctx *CompileCtx, pack *ast.Package) *apast.Package {
 				if decl.Recv == nil {
 					funcs[decl.Name.Name] = compileFuncDecl(ctx, decl)
 				} else {
-					// TODO: Validate these assumptions.
-					typeName := decl.Recv.List[0].Names[0].Name
+					methodDecl, typeName := compileMethodDecl(ctx, decl)
 					if _, ok := types[typeName]; !ok {
 						types[typeName] = &apast.TypeDecl{
 							make(map[string]*apast.MethodDecl),
 						}
 					}
-					types[typeName].Methods[decl.Name.Name] = compileMethodDecl(ctx, decl)
+					types[typeName].Methods[decl.Name.Name] = methodDecl
 				}
 			}
 		}
@@ -105,11 +107,28 @@ func compileFuncDecl(ctx *CompileCtx, funcDecl *ast.FuncDecl) *apast.FuncDecl {
 	}
 }
 
-func compileMethodDecl(ctx *CompileCtx, methodDecl *ast.FuncDecl) *apast.MethodDecl {
+func compileMethodDecl(ctx *CompileCtx, methodDecl *ast.FuncDecl) (method *apast.MethodDecl, typeName string) {
+	typeName, isPointer := getMethodReceiverType(methodDecl)
 	return &apast.MethodDecl{
 		ReceiverName: methodDecl.Recv.List[0].Names[0].Name,
+		IsPointer: isPointer,
 		Func: compileFuncDecl(ctx, methodDecl),
+	}, typeName
+}
+
+// Get information about the receiver type. Receiver types can only be either
+// a named type or a pointer to a named type.
+func getMethodReceiverType(funcDecl *ast.FuncDecl) (typeName string, isPointer bool) {
+	field := funcDecl.Recv.List[0]
+	if fieldType, ok := field.Type.(*ast.Ident); ok {
+		return fieldType.Name, false
 	}
+	if fieldType, ok := field.Type.(*ast.StarExpr); ok {
+		if underlyingType, ok := fieldType.X.(*ast.Ident); ok {
+			return underlyingType.Name, true
+		}
+	}
+	panic("Unexpected receiver type.")
 }
 
 func CompileStmt(ctx *CompileCtx, stmt ast.Stmt) apast.Stmt {

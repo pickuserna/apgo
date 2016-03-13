@@ -20,8 +20,9 @@ type TypeDecl struct {
 }
 
 type MethodDecl struct {
-	// TODO: Handle pointers and non-pointers.
+	// Variable name for the receiver param.
 	ReceiverName string
+	IsPointer bool
 	Func *FuncDecl
 }
 

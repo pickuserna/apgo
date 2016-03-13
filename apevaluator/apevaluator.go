@@ -7,7 +7,19 @@ import (
 	"github.com/alangpierce/apgo/apruntime"
 )
 
-func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []interface{} {
+// Creates a Go function corresponding to the given function in the package.
+func CreatePackageFuncValue(pack *apast.Package, name string) interface{} {
+	return func(args ...interface{}) interface{} {
+		result := evaluateFunc(pack, pack.Funcs[name], args...)
+		if result == nil {
+			return nil
+		} else {
+			return result[0]
+		}
+	}
+}
+
+func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []interface{} {
 	ctx := NewContext(pack)
 	for i, argName := range funcAst.ParamNames {
 		ctx.assignValue(argName, args[i])
@@ -16,16 +28,28 @@ func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interfac
 	return ctx.returnValues
 }
 
-// Creates a Go function corresponding to the given function in the package.
-func CreatePackageFuncValue(pack *apast.Package, name string) interface{} {
+// Create an intermediate method function for the given method and receiver.
+func createMethodValue(pack *apast.Package, method *apast.MethodDecl, receiver interface{}) interface{} {
 	return func(args ...interface{}) interface{} {
-		result := EvaluateFunc(pack, pack.Funcs[name], args...)
+		result := evaluateMethod(pack, method, receiver, args)
 		if result == nil {
 			return nil
 		} else {
 			return result[0]
 		}
 	}
+}
+
+func evaluateMethod(
+		pack *apast.Package, methodAst *apast.MethodDecl,
+		receiver interface{}, args ...interface{}) []interface{} {
+	ctx := NewContext(pack)
+	ctx.assignValue(methodAst.ReceiverName, receiver)
+	for i, argName := range methodAst.Func.ParamNames {
+		ctx.assignValue(argName, args[i])
+	}
+	EvaluateStmt(ctx, methodAst.Func.Body)
+	return ctx.returnValues
 }
 
 func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
@@ -125,10 +149,22 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 	case *apast.FieldAccessExpr:
 		leftSide := evaluateExpr(ctx, expr.E)
 		if istruct, ok := leftSide.get().(*apruntime.InterpretedStruct); ok {
-			return &InterpretedStructLValue{
-				istruct,
-				expr.Name,
+			// If it matches a method name, resolve to a method.
+			// Otherwise, resolve to a struct field.
+			if typeDecl, ok := ctx.Package.Types[istruct.TypeName]; ok {
+				if method, ok := typeDecl.Methods[expr.Name]; ok {
+					return &RValue{
+						createMethodValue(ctx.Package, method, istruct),
+					}
+				}
 			}
+			if _, ok := istruct.Values[expr.Name]; ok {
+				return &InterpretedStructLValue{
+					istruct,
+					expr.Name,
+				}
+			}
+			panic(fmt.Sprint("Field not found: ", expr.Name))
 		} else {
 			panic("Unsupported field access.")
 		}
@@ -148,6 +184,7 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		}
 	case *apast.StructLiteralExpr:
 		structVal := &apruntime.InterpretedStruct{
+			expr.TypeName,
 			make(map[string]interface{}),
 		}
 		// Populate the initial values, which should include setting
@@ -175,7 +212,6 @@ func evaluateType(expr apast.Expr) reflect.Type {
 		panic(fmt.Sprint("Type expression not implemented: ", reflect.TypeOf(expr)))
 	}
 }
-
 
 func callFunc(f interface{}, args []interface{}) []interface{} {
 	argVals := []reflect.Value{}
