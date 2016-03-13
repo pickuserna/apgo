@@ -16,6 +16,18 @@ func EvaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interfac
 	return ctx.returnValues
 }
 
+// Creates a Go function corresponding to the given function in the package.
+func CreatePackageFuncValue(pack *apast.Package, name string) interface{} {
+	return func(args ...interface{}) interface{} {
+		result := EvaluateFunc(pack, pack.Funcs[name], args...)
+		if result == nil {
+			return nil
+		} else {
+			return result[0]
+		}
+	}
+}
+
 func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 	switch stmt := stmt.(type) {
 	case *apast.ExprStmt:

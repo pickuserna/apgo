@@ -6,7 +6,7 @@ import (
 
 type Context struct {
 	Locals map[string]interface{}
-	PackageValues map[string]interface{}
+	Package *apast.Package
 	// Slice of return values, or nil if the function hasn't returned yet.
 	// This is used both for the values themselves and to communicate
 	// control flow. For example, a function returning nothing should have
@@ -17,24 +17,9 @@ type Context struct {
 }
 
 func NewContext(pack *apast.Package) *Context {
-	packageValues := make(map[string]interface{})
-	for name, funcAst := range pack.Funcs {
-		// Eager-bind the funcAst value so it points to the right loop
-		// variable.
-		packageValues[name] = func(funcAst *apast.FuncDecl) interface{} {
-			return func(args ...interface{}) interface{} {
-				result := EvaluateFunc(pack, funcAst, args...)
-				if result == nil {
-					return nil
-				} else {
-					return result[0]
-				}
-			}
-		}(funcAst)
-	}
 	return &Context{
 		Locals: make(map[string]interface{}),
-		PackageValues: packageValues,
+		Package: pack,
 	}
 }
 
@@ -44,10 +29,9 @@ func (ctx *Context) resolveValue(name string) ExprResult {
 			ctx.Locals,
 			name,
 		}
-	} else if _, ok := ctx.PackageValues[name]; ok {
-		return &VariableLValue{
-			ctx.PackageValues,
-			name,
+	} else if _, ok := ctx.Package.Funcs[name]; ok {
+		return &RValue{
+			CreatePackageFuncValue(ctx.Package, name),
 		}
 	} else {
 		// If we didn't find anything, then create it as a local
@@ -64,7 +48,7 @@ func (ctx *Context) resolveValue(name string) ExprResult {
 func (ctx *Context) isNameValid(name string) bool {
 	if _, ok := ctx.Locals[name]; ok {
 		return true
-	} else if _, ok := ctx.PackageValues[name]; ok {
+	} else if _, ok := ctx.Package.Funcs[name]; ok {
 		return true
 	}
 	return false

@@ -2,23 +2,23 @@
 package interpreter
 
 import (
-	"go/parser"
-	"go/token"
-	"github.com/alangpierce/apgo/apevaluator"
-	"github.com/alangpierce/apgo/apruntime"
 	"github.com/alangpierce/apgo/apast"
 	"github.com/alangpierce/apgo/apcompiler"
+	"github.com/alangpierce/apgo/apevaluator"
+	"github.com/alangpierce/apgo/apruntime"
 	"go/ast"
+	"go/parser"
+	"go/token"
 )
 
 type Interpreter struct {
-	packages map[string]*apast.Package
+	packages       map[string]*apast.Package
 	nativePackages map[string]*apruntime.NativePackage
 }
 
 func NewInterpreter() *Interpreter {
 	return &Interpreter{
-		packages: make(map[string]*apast.Package),
+		packages:       make(map[string]*apast.Package),
 		nativePackages: make(map[string]*apruntime.NativePackage),
 	}
 }
@@ -35,7 +35,7 @@ func (interpreter *Interpreter) LoadPackage(dirPath string) error {
 		make(map[string]bool),
 		make(map[string]*ast.StructType),
 	}
-	for name, packageAst := range packageAsts{
+	for name, packageAst := range packageAsts {
 		interpreter.packages[name] = apcompiler.CompilePackage(compileCtx, packageAst)
 	}
 	return nil
@@ -47,7 +47,7 @@ func (interpreter *Interpreter) LoadNativePackage(pack *apruntime.NativePackage)
 
 func (interpreter *Interpreter) RunMain() {
 	mainPackage := interpreter.packages["main"]
-	mainFunc := mainPackage.Funcs["main"]
-	ctx := apevaluator.NewContext(mainPackage)
-	apevaluator.EvaluateStmt(ctx, mainFunc.Body)
+	mainFunc := apevaluator.CreatePackageFuncValue(
+		mainPackage, "main").(func(...interface{}) interface{})
+	mainFunc()
 }
