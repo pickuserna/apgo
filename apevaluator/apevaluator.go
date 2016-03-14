@@ -8,28 +8,21 @@ import (
 
 // Creates a Go function corresponding to the given function in the package.
 func CreatePackageFuncValue(pack *apast.Package, name string) Value {
-	return &NativeValue{
-		func(nativeArgs ...interface{}) interface{} {
-			args := []Value{}
-			for _, nativeArg := range nativeArgs {
-				args = append(args, &NativeValue{nativeArg})
-			}
-			result := evaluateFunc(pack, pack.Funcs[name], args)
-			if result == nil {
-				return nil
-			} else {
-				return result[0].AsNative()
-			}
-		},
+	return &FunctionValue{
+		pack.Funcs[name],
+		make(map[string]Value),
 	}
 }
 
-func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args []Value) []Value {
+func EvaluateFunc(pack *apast.Package, funcValue *FunctionValue, args []Value) []Value {
 	ctx := NewContext(pack)
-	for i, argName := range funcAst.ParamNames {
+	for i, argName := range funcValue.FuncDecl.ParamNames {
 		ctx.assignValue(argName, args[i])
 	}
-	EvaluateStmt(ctx, funcAst.Body)
+	for name, val := range funcValue.BoundVariables {
+		ctx.assignValue(name, val)
+	}
+	EvaluateStmt(ctx, funcValue.FuncDecl.Body)
 	return ctx.returnValues
 }
 
@@ -39,32 +32,12 @@ func createMethodValue(pack *apast.Package, method *apast.MethodDecl, receiver V
 	if !method.IsPointer {
 		receiver = receiver.Copy()
 	}
-	return &NativeValue{
-		func(nativeArgs ...interface{}) interface{} {
-			args := []Value{}
-			for _, nativeArg := range nativeArgs {
-				args = append(args, &NativeValue{nativeArg})
-			}
-			result := evaluateMethod(pack, method, receiver, args)
-			if result == nil {
-				return nil
-			} else {
-				return result[0].AsNative()
-			}
+	return &FunctionValue{
+		method.Func,
+		map[string]Value {
+			method.ReceiverName: receiver,
 		},
 	}
-}
-
-func evaluateMethod(
-		pack *apast.Package, methodAst *apast.MethodDecl,
-		receiver Value, args []Value) []Value {
-	ctx := NewContext(pack)
-	ctx.assignValue(methodAst.ReceiverName, receiver)
-	for i, argName := range methodAst.Func.ParamNames {
-		ctx.assignValue(argName, args[i])
-	}
-	EvaluateStmt(ctx, methodAst.Func.Body)
-	return ctx.returnValues
 }
 
 func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
@@ -147,9 +120,24 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		for _, argExpr := range expr.Args {
 			args = append(args, evaluateExpr(ctx, argExpr).get())
 		}
-		// TODO: Handle multiple return values.
-		result := callFunc(f, args)[0]
-		return &RValue{result}
+		if interpretedFunc, ok := f.(*FunctionValue); ok {
+			// TODO: Support multiple return values.
+			results := EvaluateFunc(ctx.Package, interpretedFunc, args)
+			if len(results) == 1 {
+				return &RValue{
+					results[0],
+				}
+			} else {
+				return &RValue{
+					&NativeValue{nil},
+				}
+			}
+		} else if nativeFunc, ok := f.(*NativeValue); ok {
+			return evaluateNativeFunc(nativeFunc, args)
+		} else {
+			panic(fmt.Sprint("Unexpected function call on ", f))
+		}
+
 	case *apast.IdentExpr:
 		return ctx.resolveValue(expr.Name)
 	case *apast.IndexExpr:
@@ -230,15 +218,17 @@ func evaluateType(expr apast.Expr) reflect.Type {
 	}
 }
 
-func callFunc(f Value, args []Value) []Value {
+func evaluateNativeFunc(nativeFunc *NativeValue, args []Value) ExprResult {
 	argVals := []reflect.Value{}
 	for _, arg := range args {
 		argVals = append(argVals, reflect.ValueOf(arg.AsNative()))
 	}
-	resultVals := reflect.ValueOf(f.AsNative()).Call(argVals)
-	results := []Value{}
-	for _, resultVal := range resultVals {
-		results = append(results, &NativeValue{resultVal.Interface()})
+	resultVals := reflect.ValueOf(nativeFunc.AsNative()).Call(argVals)
+	if len(resultVals) == 1 {
+		return &RValue{
+			&NativeValue{resultVals[0].Interface()},
+		}
+	} else {
+		return &RValue{nil}
 	}
-	return results
 }

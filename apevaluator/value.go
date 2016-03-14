@@ -1,6 +1,9 @@
 package apevaluator
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/alangpierce/apgo/apast"
+)
 
 type Value interface {
 	// Make an attempt to convert this to a native value, for example to
@@ -35,7 +38,7 @@ type StructValue struct {
 	Values map[string]Value
 }
 
-func (nv *StructValue) AsNative() interface{} {
+func (sv *StructValue) AsNative() interface{} {
 	panic("Cannot convert StructValue to native value.")
 }
 
@@ -52,4 +55,20 @@ func (sv *StructValue) Copy() Value {
 
 func (sv *StructValue) String() string {
 	return fmt.Sprint("StructValue{", sv.TypeName, ", ", sv.Values, "}")
+}
+
+type FunctionValue struct {
+	FuncDecl *apast.FuncDecl
+	BoundVariables map[string]Value
+}
+
+func (fv *FunctionValue) AsNative() interface{} {
+	panic("Cannot convert FunctionValue to native value.")
+}
+
+func (fv *FunctionValue) Copy() Value {
+	return &FunctionValue{
+		fv.FuncDecl,
+		fv.BoundVariables,
+	}
 }
