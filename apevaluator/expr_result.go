@@ -54,15 +54,15 @@ func (lv *ReflectValLValue) set(val Value) {
 	lv.val.Set(reflect.ValueOf(val.AsNative()))
 }
 
-type InterpretedStructLValue struct {
-	istruct *InterpretedStruct
-	name string
+type StructLValue struct {
+	structVal *StructValue
+	name      string
 }
 
-func (lv *InterpretedStructLValue) get() Value {
-	return lv.istruct.Values[lv.name]
+func (lv *StructLValue) get() Value {
+	return lv.structVal.Values[lv.name]
 }
 
-func (lv *InterpretedStructLValue) set(val Value) {
-	lv.istruct.Values[lv.name] = val
+func (lv *StructLValue) set(val Value) {
+	lv.structVal.Values[lv.name] = val
 }

@@ -37,7 +37,7 @@ func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args []Value) []
 func createMethodValue(pack *apast.Package, method *apast.MethodDecl, receiver Value) Value {
 	// Do a copy if we're using pass-by-value.
 	if !method.IsPointer {
-		receiver = &NativeValue{receiver.AsNative().(*InterpretedStruct).Copy()}
+		receiver = receiver.Copy()
 	}
 	return &NativeValue{
 		func(nativeArgs ...interface{}) interface{} {
@@ -161,25 +161,25 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		}
 	case *apast.FieldAccessExpr:
 		leftSide := evaluateExpr(ctx, expr.E)
-		if istruct, ok := leftSide.get().AsNative().(*InterpretedStruct); ok {
+		if sv, ok := leftSide.get().(*StructValue); ok {
 			// If it matches a method name, resolve to a method.
 			// Otherwise, resolve to a struct field.
-			if typeDecl, ok := ctx.Package.Types[istruct.TypeName]; ok {
+			if typeDecl, ok := ctx.Package.Types[sv.TypeName]; ok {
 				if method, ok := typeDecl.Methods[expr.Name]; ok {
 					return &RValue{
-						createMethodValue(ctx.Package, method, &NativeValue{istruct}),
+						createMethodValue(ctx.Package, method, sv),
 					}
 				}
 			}
-			if _, ok := istruct.Values[expr.Name]; ok {
-				return &InterpretedStructLValue{
-					istruct,
+			if _, ok := sv.Values[expr.Name]; ok {
+				return &StructLValue{
+					sv,
 					expr.Name,
 				}
 			}
 			panic(fmt.Sprint("Field not found: ", expr.Name))
 		} else {
-			panic("Unsupported field access.")
+			panic(fmt.Sprint("Unsupported field access on ", leftSide.get()))
 		}
 	case *apast.LiteralExpr:
 		return &RValue{
@@ -200,7 +200,7 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 			},
 		}
 	case *apast.StructLiteralExpr:
-		structVal := &InterpretedStruct{
+		structVal := &StructValue{
 			expr.TypeName,
 			make(map[string]Value),
 		}
@@ -210,9 +210,7 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 			structVal.Values[key] = evaluateExpr(ctx, valueExpr).get()
 		}
 		return &RValue{
-			&NativeValue{
-				structVal,
-			},
+			structVal,
 		}
 	default:
 		panic(fmt.Sprint("Expression eval not implemented: ", reflect.TypeOf(expr)))

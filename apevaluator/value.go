@@ -7,6 +7,7 @@ type Value interface {
 	// pass it to native code. Note that not all interpreted values are
 	// possible to represent as native values.
 	AsNative() interface{}
+	Copy() Value
 }
 
 type NativeValue struct {
@@ -17,23 +18,38 @@ func (nv *NativeValue) AsNative() interface{} {
 	return nv.val
 }
 
+func (nv *NativeValue) Copy() Value {
+	// TODO: Verify this when the true fate of NativeValue is more certain.
+	return &NativeValue{
+		nv.val,
+	}
+}
+
 func (nv *NativeValue) String() string {
 	return fmt.Sprint("NativeValue{", nv.val, "}")
 }
 
-type InterpretedStruct struct {
+type StructValue struct {
 	// This is the concrete type of this struct instance.
 	TypeName string
 	Values map[string]Value
 }
 
-func (is *InterpretedStruct) Copy() *InterpretedStruct {
+func (nv *StructValue) AsNative() interface{} {
+	panic("Cannot convert StructValue to native value.")
+}
+
+func (sv *StructValue) Copy() Value {
 	newValues := make(map[string]Value)
-	for key, value := range is.Values {
+	for key, value := range sv.Values {
 		newValues[key] = value
 	}
-	return &InterpretedStruct{
-		is.TypeName,
+	return &StructValue{
+		sv.TypeName,
 		newValues,
 	}
+}
+
+func (sv *StructValue) String() string {
+	return fmt.Sprint("StructValue{", sv.TypeName, ", ", sv.Values, "}")
 }
