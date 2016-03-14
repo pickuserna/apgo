@@ -4,14 +4,14 @@ import (
 	"github.com/alangpierce/apgo/apast"
 )
 
-func panicBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) interface{} {
+func panicBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) Value {
 	argExpr := funcCall.Args[0]
 	arg := evaluateExpr(ctx, argExpr)
 	panic(arg.get())
-	return nil
+	return &NativeValue{nil}
 }
 
-type BuiltinFunc func(ctx *Context, funcCall *apast.FuncCallExpr) interface{}
+type BuiltinFunc func(ctx *Context, funcCall *apast.FuncCallExpr) Value
 
 var builtins map[string]BuiltinFunc
 func init() {
@@ -22,7 +22,7 @@ func init() {
 }
 
 // Builtins skip the normal evaluation step and are handled specially.
-func resolveBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) func() interface{} {
+func resolveBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) func() Value {
 	switch funcExpr := funcCall.Func.(type) {
 	case *apast.IdentExpr:
 		if ctx.isNameValid(funcExpr.Name) {
@@ -35,7 +35,7 @@ func resolveBuiltin(ctx *Context, funcCall *apast.FuncCallExpr) func() interface
 		}
 		builtin := builtins[funcExpr.Name]
 		if builtin != nil {
-			return func() interface{} {
+			return func() Value {
 				return builtin(ctx, funcCall)
 			}
 		}

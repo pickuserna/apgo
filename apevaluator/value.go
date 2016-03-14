@@ -1,65 +1,39 @@
 package apevaluator
 
-import (
-	"reflect"
-	"fmt"
-	"github.com/alangpierce/apgo/apruntime"
-)
+import "fmt"
 
-// ExprResult is what you get when evaluating an expression. It is a little more
-// generic than just a value because sometimes it can implicitly be assignable
-// and/or have a pointer associated with it.
-type ExprResult interface {
-	get() interface{}
-	set(val interface{})
+type Value interface {
+	// Make an attempt to convert this to a native value, for example to
+	// pass it to native code. Note that not all interpreted values are
+	// possible to represent as native values.
+	AsNative() interface{}
 }
 
-type RValue struct {
+type NativeValue struct {
 	val interface{}
 }
 
-func (rv *RValue) get() interface{} {
-	return rv.val
+func (nv *NativeValue) AsNative() interface{} {
+	return nv.val
 }
 
-func (rv *RValue) set(val interface{}) {
-	panic(fmt.Sprint("Called set on RValue ", rv.val))
+func (nv *NativeValue) String() string {
+	return fmt.Sprint("NativeValue{", nv.val, "}")
 }
 
-type VariableLValue struct {
-	varMap map[string]interface{}
-	name string
+type InterpretedStruct struct {
+	// This is the concrete type of this struct instance.
+	TypeName string
+	Values map[string]Value
 }
 
-func (lv *VariableLValue) get() interface{} {
-	return lv.varMap[lv.name]
-}
-
-func (lv *VariableLValue) set(val interface{}) {
-	lv.varMap[lv.name] = val
-}
-
-type ReflectValLValue struct {
-	val reflect.Value
-}
-
-func (lv *ReflectValLValue) get() interface{} {
-	return lv.val.Interface()
-}
-
-func (lv *ReflectValLValue) set(val interface{}) {
-	lv.val.Set(reflect.ValueOf(val))
-}
-
-type InterpretedStructLValue struct {
-	istruct *apruntime.InterpretedStruct
-	name string
-}
-
-func (lv *InterpretedStructLValue) get() interface{} {
-	return lv.istruct.Values[lv.name]
-}
-
-func (lv *InterpretedStructLValue) set(val interface{}) {
-	lv.istruct.Values[lv.name] = val
+func (is *InterpretedStruct) Copy() *InterpretedStruct {
+	newValues := make(map[string]Value)
+	for key, value := range is.Values {
+		newValues[key] = value
+	}
+	return &InterpretedStruct{
+		is.TypeName,
+		newValues,
+	}
 }

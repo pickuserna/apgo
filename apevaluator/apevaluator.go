@@ -4,22 +4,27 @@ import (
 	"github.com/alangpierce/apgo/apast"
 	"reflect"
 	"fmt"
-	"github.com/alangpierce/apgo/apruntime"
 )
 
 // Creates a Go function corresponding to the given function in the package.
-func CreatePackageFuncValue(pack *apast.Package, name string) interface{} {
-	return func(args ...interface{}) interface{} {
-		result := evaluateFunc(pack, pack.Funcs[name], args...)
-		if result == nil {
-			return nil
-		} else {
-			return result[0]
-		}
+func CreatePackageFuncValue(pack *apast.Package, name string) Value {
+	return &NativeValue{
+		func(nativeArgs ...interface{}) interface{} {
+			args := []Value{}
+			for _, nativeArg := range nativeArgs {
+				args = append(args, &NativeValue{nativeArg})
+			}
+			result := evaluateFunc(pack, pack.Funcs[name], args)
+			if result == nil {
+				return nil
+			} else {
+				return result[0].AsNative()
+			}
+		},
 	}
 }
 
-func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interface{}) []interface{} {
+func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args []Value) []Value {
 	ctx := NewContext(pack)
 	for i, argName := range funcAst.ParamNames {
 		ctx.assignValue(argName, args[i])
@@ -29,25 +34,30 @@ func evaluateFunc(pack *apast.Package, funcAst *apast.FuncDecl, args ...interfac
 }
 
 // Create an intermediate method function for the given method and receiver.
-func createMethodValue(pack *apast.Package, method *apast.MethodDecl, receiver interface{}) interface{} {
-	r := receiver.(*apruntime.InterpretedStruct)
+func createMethodValue(pack *apast.Package, method *apast.MethodDecl, receiver Value) Value {
 	// Do a copy if we're using pass-by-value.
 	if !method.IsPointer {
-		r = r.Copy()
+		receiver = &NativeValue{receiver.AsNative().(*InterpretedStruct).Copy()}
 	}
-	return func(args ...interface{}) interface{} {
-		result := evaluateMethod(pack, method, r, args)
-		if result == nil {
-			return nil
-		} else {
-			return result[0]
-		}
+	return &NativeValue{
+		func(nativeArgs ...interface{}) interface{} {
+			args := []Value{}
+			for _, nativeArg := range nativeArgs {
+				args = append(args, &NativeValue{nativeArg})
+			}
+			result := evaluateMethod(pack, method, receiver, args)
+			if result == nil {
+				return nil
+			} else {
+				return result[0].AsNative()
+			}
+		},
 	}
 }
 
 func evaluateMethod(
 		pack *apast.Package, methodAst *apast.MethodDecl,
-		receiver interface{}, args ...interface{}) []interface{} {
+		receiver Value, args []Value) []Value {
 	ctx := NewContext(pack)
 	ctx.assignValue(methodAst.ReceiverName, receiver)
 	for i, argName := range methodAst.Func.ParamNames {
@@ -88,7 +98,7 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 		// TODO: Handle scopes properly, if necessary.
 		EvaluateStmt(ctx, stmt.Init)
 		condValue := evaluateExpr(ctx, stmt.Cond)
-		if condValue.get().(bool) {
+		if condValue.get().AsNative().(bool) {
 			EvaluateStmt(ctx, stmt.Body)
 		} else {
 			EvaluateStmt(ctx, stmt.Else)
@@ -98,7 +108,7 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 		EvaluateStmt(ctx, stmt.Init)
 		for {
 			condValue := evaluateExpr(ctx, stmt.Cond)
-			if !condValue.get().(bool) {
+			if !condValue.get().AsNative().(bool) {
 				break
 			}
 			EvaluateStmt(ctx, stmt.Body)
@@ -111,7 +121,7 @@ func EvaluateStmt(ctx *Context, stmt apast.Stmt) {
 	case *apast.BreakStmt:
 		ctx.shouldBreak = true
 	case *apast.ReturnStmt:
-		returnValues := []interface{}{}
+		returnValues := []Value{}
 		for _, result := range stmt.Results {
 			returnValues = append(returnValues, evaluateExpr(ctx, result).get())
 		}
@@ -133,15 +143,13 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		}
 
 		f := evaluateExpr(ctx, expr.Func).get()
-		args := []interface{}{}
+		args := []Value{}
 		for _, argExpr := range expr.Args {
 			args = append(args, evaluateExpr(ctx, argExpr).get())
 		}
 		// TODO: Handle multiple return values.
 		result := callFunc(f, args)[0]
-		return &RValue{
-			result,
-		}
+		return &RValue{result}
 	case *apast.IdentExpr:
 		return ctx.resolveValue(expr.Name)
 	case *apast.IndexExpr:
@@ -149,17 +157,17 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		arrOrSlice := evaluateExpr(ctx, expr.E).get()
 		index := evaluateExpr(ctx, expr.Index).get()
 		return &ReflectValLValue{
-			reflect.ValueOf(arrOrSlice).Index(index.(int)),
+			reflect.ValueOf(arrOrSlice.AsNative()).Index(index.AsNative().(int)),
 		}
 	case *apast.FieldAccessExpr:
 		leftSide := evaluateExpr(ctx, expr.E)
-		if istruct, ok := leftSide.get().(*apruntime.InterpretedStruct); ok {
+		if istruct, ok := leftSide.get().AsNative().(*InterpretedStruct); ok {
 			// If it matches a method name, resolve to a method.
 			// Otherwise, resolve to a struct field.
 			if typeDecl, ok := ctx.Package.Types[istruct.TypeName]; ok {
 				if method, ok := typeDecl.Methods[expr.Name]; ok {
 					return &RValue{
-						createMethodValue(ctx.Package, method, istruct),
+						createMethodValue(ctx.Package, method, &NativeValue{istruct}),
 					}
 				}
 			}
@@ -175,22 +183,26 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 		}
 	case *apast.LiteralExpr:
 		return &RValue{
-			expr.Val,
+			&NativeValue{
+				expr.Val,
+			},
 		}
 	case *apast.SliceLiteralExpr:
 		typ := evaluateType(expr.Type)
 		result := reflect.MakeSlice(
 			reflect.SliceOf(typ), len(expr.Vals), len(expr.Vals))
 		for i, val := range expr.Vals {
-			result.Index(i).Set(reflect.ValueOf(evaluateExpr(ctx, val).get()))
+			result.Index(i).Set(reflect.ValueOf(evaluateExpr(ctx, val).get().AsNative()))
 		}
 		return &RValue{
-			result.Interface(),
+			&NativeValue{
+				result.Interface(),
+			},
 		}
 	case *apast.StructLiteralExpr:
-		structVal := &apruntime.InterpretedStruct{
+		structVal := &InterpretedStruct{
 			expr.TypeName,
-			make(map[string]interface{}),
+			make(map[string]Value),
 		}
 		// Populate the initial values, which should include setting
 		// fields to their proper zeros.
@@ -198,7 +210,9 @@ func evaluateExpr(ctx *Context, expr apast.Expr) ExprResult {
 			structVal.Values[key] = evaluateExpr(ctx, valueExpr).get()
 		}
 		return &RValue{
-			structVal,
+			&NativeValue{
+				structVal,
+			},
 		}
 	default:
 		panic(fmt.Sprint("Expression eval not implemented: ", reflect.TypeOf(expr)))
@@ -218,15 +232,15 @@ func evaluateType(expr apast.Expr) reflect.Type {
 	}
 }
 
-func callFunc(f interface{}, args []interface{}) []interface{} {
+func callFunc(f Value, args []Value) []Value {
 	argVals := []reflect.Value{}
 	for _, arg := range args {
-		argVals = append(argVals, reflect.ValueOf(arg))
+		argVals = append(argVals, reflect.ValueOf(arg.AsNative()))
 	}
-	resultVals := reflect.ValueOf(f).Call(argVals)
-	results := []interface{}{}
+	resultVals := reflect.ValueOf(f.AsNative()).Call(argVals)
+	results := []Value{}
 	for _, resultVal := range resultVals {
-		results = append(results, resultVal.Interface())
+		results = append(results, &NativeValue{resultVal.Interface()})
 	}
 	return results
 }

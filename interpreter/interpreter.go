@@ -48,6 +48,6 @@ func (interpreter *Interpreter) LoadNativePackage(pack *apruntime.NativePackage)
 func (interpreter *Interpreter) RunMain() {
 	mainPackage := interpreter.packages["main"]
 	mainFunc := apevaluator.CreatePackageFuncValue(
-		mainPackage, "main").(func(...interface{}) interface{})
+		mainPackage, "main").AsNative().(func(...interface{}) interface{})
 	mainFunc()
 }

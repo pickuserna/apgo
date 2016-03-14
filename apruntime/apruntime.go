@@ -14,11 +14,6 @@ type NativePackage struct {
 	Globals map[string]*interface{}
 }
 
-func Index(a interface{}, y interface{}) interface{} {
-	// TODO: Handle maps.
-	return reflect.ValueOf(a).Index(y.(int)).Interface()
-}
-
 func add(x interface{}, y interface{}) interface{} {
 	sum := reflect.ValueOf(x).Int() + reflect.ValueOf(y).Int()
 	// Since this is a well-formed operation, the two types must be the
